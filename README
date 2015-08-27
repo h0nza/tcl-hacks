@@ -1,0 +1,19 @@
+A repository of useful and/or interesting hacks in Tcl.
+
+Some of this stuff I use every day, some is highly experimental, some is just
+fun.  It should all be pretty readable.
+
+Subdirectories are independent projects:  see individual READMEs for details.
+
+Initial contents include:
+
+    ebnf    - a recursive-descent parser generator with a cute implementation
+    go      - a reimplementation of https://github.com/securitykiss-com/csp
+    inet    - a toy inetd with inbuilt coroutine-based services
+    oometa  - TclOO extension done right
+    procmap - collect metadata about Tcl procedures at runtime.  Dangerously.
+    tcltags - ctags(1) clone for Tcl
+
+    modules - various general-purpose pure-Tcl modules
+
+    hacks   - interesting hacks that are too experimental to be useful yet

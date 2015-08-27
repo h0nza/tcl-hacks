@@ -1,0 +1,32 @@
+Everything in here is a Tcl module.  Add this directory to your ::tcl::tm::path and enjoy.
+
+
+fun-0.tm        -- lots of useful routines for functional style and brevity in Tcl
+    notable: many things.  Read it over a cup of tea.
+
+extend-0.tm     -- many extensions (extra subcommands) for Tcl builtins.  Some essential, some questionable.
+
+chans-0.tm      -- a small collection of handy refchan/transchans
+    notable:  [chan push stdout [list teecmd {.textwidget insert end}]]
+
+debug-0.tm      -- a debugging library
+    notable:  debug log {substmessage};  debug assert {expr} {substmessage}
+
+tests-0.tm      -- self-contained tests within packages
+
+options-0.tm    -- [options] and [arguments] for procs
+    this is somewhat popular
+
+tip288-0.tm     -- an extension on the above providing prefix/infix optional arguments
+
+pkg-0.tm        -- simple packages
+
+tsv-0.1.tm      -- more flexible replacement for tcllib's csv
+
+oometa-1.tm     -- TclOO extension done right!  (a literate program)
+    please steal and use this.  It needs examples.
+
+totp-0.tm       -- simple totp/hotp implementation
+
+tdbcplus-0.1.tm -- monkey patches for TDBC.  Illustrates [mixin] well.
+

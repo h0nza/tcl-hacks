@@ -1,0 +1,19 @@
+procmap is dangerous.
+
+The idea is to "map" all the commands in the interpreter by:
+
+  * recursively enumerating namespaces to find all their commands
+  * examining ensembles and objects to find their subcommands
+
+.. and then:
+
+  * invoking every command with (hopefully) error-generating arguments
+  * capturing and parsing the error's useful message
+  * identifying new subcommands, options and arguments this way
+
+It's like what you do in the shell when you forget what order [lrepeat] takes
+its arguments, but automated.  But procmap doesn't know [file delete] can't
+safely be called with random arguments, so Be Careful.
+
+Quite a lot of information comes out that will be handy for static analysis
+and IDE/REPL support.  But this is just an early step.
