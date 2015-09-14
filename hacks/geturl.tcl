@@ -1,7 +1,9 @@
 package require http
 package require uri
-package require tls
-http::register https 443 ::tls::socket
+catch {
+    package require tls
+    http::register https 443 ::tls::socket
+}
 
 #http::config -useragent poop   ;# ?? I think this was to get around sourceforge?
 
