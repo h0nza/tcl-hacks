@@ -19,9 +19,13 @@
 # Hierarchical bindtags a la bindtags(n) example looks interesting
 #
 
+tcl::tm::path add [file normalize [info script]/../../modules]
+
+package require Tk
+
 package require pkg
 package require tests
-package require debug
+package require debug 0 ;# not tcllib
 
 pkg -export * Window {
 
@@ -74,7 +78,12 @@ pkg -export * Window {
             lmap a $arglist {
                 if {$q} {
                     if {![string match ::* $a]} {
-                        debug assert {$a in [info object variables [self]]}
+                        if {[string match *(*) $a]} {   ;# unwrap array name
+                            set n [lindex [split $a (] 0]
+                        } else {
+                            set n $a
+                        }
+                        debug assert {$n in [info object variables [self]]}
                         set q 0
                         my varname $a
                     } else {
@@ -192,6 +201,13 @@ pkg -export * Window {
         method variable args {
             oo::objdefine [self] variable {*}$args
         }
+        method upvar {name} {
+            oo::objdefine [self] variable $name
+            set upvar [uplevel 1 namespace current]::$name 
+            set myvar [my varname $name]
+            upvar 1 $upvar $myvar
+            return $myvar
+        }
         method get {name} {
             set [my varname $name]
         }
@@ -216,9 +232,7 @@ pkg -export * Window {
     }
 }
 
-if 1 {
-    package require Tk
-
+if 0 {
     catch {rename After {}}
     oo::class create After {    ;# a mixin that cancels afters when the object is destroyed
         variable Afters
@@ -340,3 +354,31 @@ if 0 {
     set tabs [notebook tabs]
 }
 
+if 1 {
+    ;# illustrating the use of [method upvar]
+    package require Tk
+    oo::class create ChoiceForm {
+        variable choices
+        constructor {dict} {
+            Widget create w toplevel
+            w upvar choices     ;# share this variable with w
+            dict for {k v} $dict {
+                set b check_[incr i]
+                w widget checkbutton $b -text $k -variable choices($v)
+                w grid $b -
+            }
+            w widget button invert -command [namespace code {my Invert}] -text "Invert selections"
+            w widget button print -command [namespace code {my Print}] -text "Print values"
+            w grid invert print
+        }
+        method Invert {} {
+            dict for {k v} [array get choices] {
+                set choices($k) [expr {!$v}]
+            }
+        }
+        method Print {} {
+            parray choices
+        }
+    }
+    ChoiceForm create c {"One fine day" tomorrow "Never comes" around "There once was a" "little blue pony"}
+}
