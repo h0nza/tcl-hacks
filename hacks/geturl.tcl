@@ -4,6 +4,7 @@ catch {
     package require tls
     http::register https 443 ::tls::socket
 }
+::tls::init -tls1 1 -tls1.2 1 -tls1.1 0 -ssl3 0 -ssl2 0
 
 #http::config -useragent poop   ;# ?? I think this was to get around sourceforge?
 
@@ -118,3 +119,9 @@ if 0 {
 #    namespace ensemble create
 #}
 
+if {[info script] eq $::argv0 && $::argv ne ""} {
+    foreach url $::argv {
+        puts "Getting $url"
+        geturl $url
+    }
+}
