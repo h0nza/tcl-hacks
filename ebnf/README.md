@@ -59,3 +59,8 @@ considering this, you may want different semantics for some control constructs, 
     [opt script] - attempt script.  If it fails, push a single empty result onto $0.
     [any s0 ...] - attempt each script until one succeeds.  The successful script's results will appear on $0.
     [many script]- try script repeatedly until it fails.  Results are collected into a list and pushed.
+
+
+** References
+
+http://www.garshol.priv.no/download/text/bnf.html
