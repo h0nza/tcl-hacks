@@ -88,7 +88,7 @@ namespace eval meta {
             set cls [uplevel 1 [list namespace which $cls]]     ;# could avoid this with [tailcall]..
             debug log {defining %1$s on $cls}
             oo::define $cls %1$s {*}$args
-        } $tail]
+        } [list $tail]]
     }
 
     # The base class of all classes is an instance of Metaclass and a subclass of oo::class.
