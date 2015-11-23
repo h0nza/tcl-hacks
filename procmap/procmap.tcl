@@ -63,6 +63,8 @@ namespace eval procmap {
     }
     proc ens_map ens {  ;# see also fun::subcommands
         # FIXME:? parameters?
+        # FIXME: if both -map and -subcommands are populated, -map is "slave" to -subcommands (thanks pyk 2015-11-23)
+        # FIXME: the values of $map can include arguments.  Handling that will make things quite a bit more complicated (thanks pyk 2015-22-23)
         if {[set map [namespace ensemble configure $ens -map]] ne ""} {
             return $map
         }
