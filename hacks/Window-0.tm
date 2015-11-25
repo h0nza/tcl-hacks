@@ -550,6 +550,9 @@ set demos {
                     }
                     dict unset Triggers $varname
                 }
+                my update
+            }
+            method update {} {
                 dict for {expr cond} $Conditions {
                     dict with cond {}
                     set new [expr {[my Apply expr $expr] ? $true : $false}]
@@ -587,6 +590,7 @@ set demos {
                     } finally [my callback autolayout {*}$al]
                 }
                 my Construct
+                w update
             }
 
             method Cancel {} {
