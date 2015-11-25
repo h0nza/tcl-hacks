@@ -47,7 +47,7 @@ package require snidgets
 package require pkg
 package require tests
 package require adebug
-package require repl
+#package require repl
 
 pkg -export * Window {
 

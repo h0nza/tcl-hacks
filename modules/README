@@ -30,3 +30,6 @@ totp-0.tm       -- simple totp/hotp implementation
 
 tdbcplus-0.1.tm -- monkey patches for TDBC.  Illustrates [mixin] well.
 
+sql-0.tm        -- helpers for safely composing SQL queries
+
+snidgets/       -- various (mega-)widgets using the wonderful snit

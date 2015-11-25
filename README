@@ -17,3 +17,14 @@ Initial contents include:
     modules - various general-purpose pure-Tcl modules
 
     hacks   - interesting hacks that are too experimental to be useful yet
+
+Where stuff is demo'able, I've included "boot.tcl" which will stuff the
+appropriate dirs into $::auto_path and tcl::tm::path so that it can find its
+modules.  Just put that in the command-line:
+
+    $ tclsh boot.tcl hacks/Window-0.tm
+
+
+!NOTE!:  the contents of this repository often lag dreadfully behind what I'm
+actually using in live projects.  If anything seems particularly funky, or
+simply fails to work, ping me with a ticket (or on the chat) to update it.
