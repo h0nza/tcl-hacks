@@ -49,6 +49,9 @@ package require tests
 package require adebug
 #package require repl
 
+package require tkImprover
+
+
 pkg -export * Window {
 
     proc windowcontext {} {}
@@ -87,7 +90,6 @@ pkg -export * Window {
             bind $w <Destroy> {}
             catch next
         }
-
 
         export varname  ;# this will be useful for consumers
                         ;# as will this:
@@ -270,6 +272,44 @@ pkg -export * Window {
 
         method bindtags args {
             tailcall bindtags [my w] {*}$args
+        }
+
+        method dialog {args} {
+            if {[llength $args]%2} {
+                set args [linsert $args end-1 -message]
+            }
+            if {![dict exists $args -parent]} {
+                dict set args -parent [my w]
+            }
+            tk_messageBox {*}$args
+        }
+
+        method choosefile {args} {
+            if {[llength $args]%2} {
+                set args [linsert $args 0 -type]
+            }
+            if {![dict exists $args -type]} {
+                throw {TCL BADARGS} "Must specify -type!"
+            }
+            switch -exact $type {
+                "multi" {
+                    set cmd tk_getOpenFile
+                    dict set args -multiple yes
+                }
+                "open" {
+                    set cmd tk_getOpenFile
+                }
+                "save" {
+                    set cmd tk_getSaveFile
+                }
+                "dir" - "folder" {
+                    set cmd tk_chooseDirectory
+                }
+            }
+            if {![dict exists $args -parent]} {
+                dict set args -parent [my w]
+            }
+            $cmd {*}$args
         }
 
         variable options
@@ -580,7 +620,11 @@ set demos {
                 w method frame {name args} {
                     set script [lindex $args end]
                     set args [lreplace $args end end]
-                    set win [my widget ::ttk::labelframe $name {*}$args]
+                    if {[dict exists $args -text] || [dict exists $args -labelwidget]} {
+                        set win [my widget ::ttk::labelframe $name {*}$args]
+                    } else {
+                        set win [my widget ::ttk::frame $name {*}$args]
+                    }
                     set win [$name w]
 
                     set al [my autolayout]
@@ -591,14 +635,24 @@ set demos {
                 }
                 my Construct
                 w update
+                my Defaults
             }
 
-            method Cancel {} {
-                my Result Cancel
+            forward dialog w dialog
+
+            method Defaults {} {
+                variable Defaults
+                set Defaults [array get {}]
             }
-            method Okay {} {
-                parray {}
-                my Result Okay
+
+            method changed? {} {
+                variable Defaults
+                dict for {k v} $Defaults {
+                    if {$v ne $($k)} {
+                        return true
+                    }
+                }
+                return false
             }
 
             method Callback {method args} {
@@ -606,43 +660,23 @@ set demos {
             }
             
             method wait {} {    ;# wait is to be called in a coroutine
-                #debug assert {[my cget -command] eq ""}
-
-                my On Cancel [info coroutine] false
-                my On *      [info coroutine] true
-
-                set res [yieldm]
-                lassign $res rc
-
-                debug log {[info object class [self]]: wait($res)}
-
-                after 0 [list after idle [my Callback destroy]]
-                if {!$rc} {
-                    return -code break
-                } else {
-                    return [my result]
-                }
+                my ReturnTo  [info coroutine]
+                return [yield]
             }
 
-            method result {} {
+            method get {} {
                 array get {}
             }
 
-            method On {what cmd args} {
-                my variable On
-                dict set On $what [list $cmd {*}$args]
+            method ReturnTo {args} {
+                variable ReturnTo
+                set ReturnTo $args
             }
 
-            method Result {what} {
-                my variable On
-                if {[info exists On]} {
-                    dict for {pat cmd} $On {
-                        if {[string match $pat $what]} {
-                            tailcall {*}$cmd
-                        }
-                    }
-                }
-                debug log {ERROR: no trigger for $what}
+            method Return {what} {
+                variable ReturnTo
+                # after idle?
+                tailcall {*}$ReturnTo $what
             }
         }
 
@@ -690,16 +724,19 @@ set demos {
                 set (do_css) 1
                 set (do_img) 1
 
-                w widget frame buttons
+                w frame buttons
 
                 #map {w grid} {files do_toc do_js do_css do_img buttons}
 
                 w buttons grid [
-                    w buttons widget button bCancel -text "Cancel"  -command [my Callback Cancel]
+                    w buttons widget button bCancel -text "Cancel"  -command [my Callback Return Cancel]
                 ] [
-                    w buttons widget button bOkay   -text "Okay"    -command [my Callback Okay]
+                    w buttons widget button bOops -text "Something"  -command [my Callback Return Something]
+                ] [
+                    w buttons widget button bOkay   -text "Okay"    -command [my Callback Return Okay]      -default active
                 ]
             }
+
         }
 
         catch {
@@ -707,18 +744,59 @@ set demos {
             pdict [inspect Inliner]
         }
 
+
+        proc run_form {class {w toplevel}} {
+            set form [$class new $w]
+            while 1 {
+                set rc [$form wait]
+                switch -exact $rc {
+                    "Okay" {
+                        set data [$form get]
+                        break
+                    }
+                    "Cancel" {
+                        if {(![$form changed?]) || [$form dialog -type yesno -message "Really cancel?"]} {
+                            set data ""     ;# empty return value indicates cancelled form
+                            break
+                        }
+                    }
+                    default {
+                        $form dialog "Unknown message: $rc"
+                    }
+                }
+            }
+            $form destroy
+            return $data
+        }
+        coroutine main {*}[namespace code {
+#            toplevel .form
+#            pack [ttk::frame .form.f -padding 10] -in .form
+#            set d [run_form Inliner .form.f]
+            set d [run_form Inliner toplevel]
+            if {$d eq ""} {
+                puts "Form cancelled!"
+            } else {
+                puts "Form submitted!"
+                pdict $d
+            }
+        }]
+
+if 0 {
         puts "lalala"
+        toplevel .form
+        pack [ttk::frame .form.f -padding 10] -in .form
         coroutine run {*}[namespace code {
             puts "lololo"
             puts [namespace which Inliner]
             puts [info object call Inliner run]
-            Inliner run
+            Inliner run .form.f
             puts "lilili"
             incr ::done
         }]
         puts "lululu"
         vwait done
         puts "lolwat"
+}
     }
 }
 
