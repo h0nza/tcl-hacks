@@ -128,10 +128,8 @@ apply {{} {
     }
 
     if {$platform eq "unix"} {
-        puts "Binding selectall to ^A"
         Events::rebind <<SelectAll>> <Control-A>  ;# Control-Shift-A - <Control-a> is <<Home>>
     } else {
-        puts "Binding selectall to ^a"
         Events::rebind <<SelectAll>> <Control-a>
     }
 
