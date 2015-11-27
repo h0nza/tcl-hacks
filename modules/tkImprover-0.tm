@@ -25,7 +25,9 @@ namespace eval Events {
         }
     }
 
-    # this isn't very clever
+    # this isn't very clever, only close enough for the immediate need here.
+    # A fully-accurate version might use <http://wiki.tcl.tk/1401#pagetoc4d1849c3>
+    # (or at least be tested against it)
     proc normalize {event} {
         set event [string range $event 1 end-1]
         set parts [split $event -]
