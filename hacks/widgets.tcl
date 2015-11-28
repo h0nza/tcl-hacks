@@ -3,6 +3,9 @@ package require Tk
 package require tkImprover
 #source tkImprover-0.tm
 
+#bind . <Escape> {puts Escape:%M}
+#bind . <Return> {puts Return:%M}
+
 pack [button .b -text button -command {puts Button!}]
 pack [checkbutton .c -text check -command {puts Check!}]
 pack [radiobutton .r1 -text radio\ 1 -variable radio -value 1 -command {puts Radio:$::radio}]
@@ -31,7 +34,7 @@ pack [text .t -undo 1]
 "
 
 puts "\n\n====\n\n"
-foreach w {.b .c .r1 .e .t} {
+foreach w {. .b .c .r1 .e .t .tb .tc .tr1 .te} {
     puts "bindtags $w: [bindtags $w]"
     puts "class $w: [set class [winfo class $w]]"
     #puts "bind $class <Return>: [bind $class <Return>]"

@@ -155,6 +155,38 @@ apply {{} {
         string map $map [info body ::tk_textPaste]
     ]
 
+# Virtual events for forms:  <<Submit>> and <<Cancel>>
+
+    # .. these make a mess when widgets already handle said keystroke
+    #event add <<Submit>> <Return>
+    #event add <<Cancel>> <Escape>
+ 
+    # .. so some extra smarts are needed:
+    bind all <Return> {
+        if {%M==0} {
+            event generate %W <<Submit>>
+        }
+    }
+    bind all <Escape> {
+        if {%M==0} {
+            event generate %W <<Cancel>>
+        }
+    }
+# rebind do-nothing keys to generate these events
+    foreach tag {Entry TEntry Text} {   ;# CText?
+        foreach {event key} {
+            <<Submit>> <Return>
+            <<Cancel>> <Escape>
+        } {
+            set script [bind $tag $key]
+            if {$script eq "# nothing"} {
+                bind $tag $key "[list event generate %W $event]; break"
+            }
+        }
+    }
+    #bind all <<Submit>> {puts Sbmit!%W}
+    #bind all <<Cancel>> {puts Cancl!%W}
+
 # set up some better default options
     set defaultBackground [ttk::style configure . -background]
     set defaultBackground [ttk::style lookup . -background active]
