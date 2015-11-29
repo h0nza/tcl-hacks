@@ -54,6 +54,11 @@ package require tkImprover
 
 pkg -export * Window {
 
+
+    proc callback {args} {
+        tailcall namespace code $args
+    }
+
     proc windowcontext {} {}
 
     oo::class create Widget {
@@ -170,7 +175,7 @@ pkg -export * Window {
         method autolayout args {
             multiargs {
                 {packer args} {
-                    my GM $packer
+                    if {![dict exists $args -in]} {my GM $packer}
                     set autolayout [list $packer {*}$args]
                 }
                 {} {
@@ -201,7 +206,7 @@ pkg -export * Window {
         }
 
         method grid {cmd args} {
-            my GM grid
+            if {![dict exists $args -in]} {my GM grid}
             if {$cmd in "anchor bbox location size propagate slaves configure rowconfigure columnconfigure forget"} {
                 grid $cmd $w {*}[my ItemArgs {*}$args]
             } else {
@@ -209,11 +214,11 @@ pkg -export * Window {
             }
         }
         method pack {cmd args} {
-            my GM pack
+            if {![dict exists $args -in]} {my GM pack}
             if {$cmd in "propagate slaves forget"} {
                 pack $cmd $w {*}[my ItemArgs {*}$args]
             } else {
-                pack {*}[my GridArgs $cmd {*}$args] -in $w
+                pack {*}[my GridArgs $cmd {*}$args] ;#-in $w
             }
         }
         method ItemArgs {args} {
@@ -614,6 +619,10 @@ set demos {
 
             variable {} ;# the form
 
+            method Callback {method args} {
+                namespace code [list my $method {*}$args]
+            }
+
             constructor {args} {
                 FormWidget create w {*}$args    ;# FIXME: use args better than just for this
                 w upvar {}
@@ -631,14 +640,42 @@ set demos {
                     my autolayout {*}$al -in $win
                     try {
                         my eval $script
-                    } finally [my callback autolayout {*}$al]
+                    } finally [callback my autolayout {*}$al]
                 }
+
                 my Construct
+
+                w bind <<Submit>> [callback my Submit]
+                w bind <<Cancel>> [callback my Cancel]
                 w update
                 my Defaults
             }
 
             forward dialog w dialog
+
+            method buttons {script} {
+                w frame buttons
+                set w [w buttons w]
+                set al [w autolayout]
+                puts "Autolayout was: $al"
+                w autolayout pack -in $w -side left -expand yes -fill x
+                puts "Autolayout is: [w autolayout]"
+                try {
+                    my eval $script
+                } finally [callback w autolayout {*}$al]
+            }
+
+            method button {text args} {
+                set name b$text
+                if {![dict exists $args -command]} {
+                    if {$text in [info object methods [self] -all -private]} {
+                        dict set args -command [callback my $text]
+                    } else {
+                        dict set args -command [callback my Return $text]
+                    }
+                }
+                w widget button $name -text $text {*}$args
+            }
 
             method Defaults {} {
                 variable Defaults
@@ -655,8 +692,32 @@ set demos {
                 return false
             }
 
-            method Callback {method args} {
-                namespace code [list my $method {*}$args]
+            method Cancel {} {
+                puts "Cancel?"
+                if {![my changed?] || [my ConfirmCancel]} {
+                    my Return ""
+                }
+            }
+
+            forward Okay my Submit
+
+            method Submit {} {
+                puts "Submit!"
+                if {![my Validate]} {
+                    # highlight errors
+                    my dialog -type okay -message "Please complete the form before pressing Okay"
+                    return
+                }
+                my Return [my get]
+            }
+
+
+            method ConfirmCancel {} {
+                my dialog -type yesno -message "Really cancel?"
+            }
+
+            method Validate {} {
+                return true
             }
             
             method wait {} {    ;# wait is to be called in a coroutine
@@ -687,17 +748,12 @@ set demos {
                 next $name $script
             }
 
-            # this could take:
-            #  - a dictionary of values
-            #  - a script to run on success (or nothing on failure?)
-            method run {{w toplevel}} {
-                set i [my new $w]
+            method run {{w toplevel} args} {
+                set i [my new $w {*}$args]
                 try {
-                    set res [$i wait]
-                    puts "Got result:"
-                    pdict $res
-                } on break {} {
-                    puts "Cancelled!"
+                    $i wait
+                } finally {
+                    $i destroy
                 }
             }
         }
@@ -706,13 +762,15 @@ set demos {
 
             method Construct {} {
                 w autolayout grid -sticky nsew
-                w widget FilesChooser   files   -listvariable (files) -text "Choose HTML file"   -multiple yes
-                w frame selections -text " Selections: " {
-                    # the -variable args work because of [w upvar ""] in the constructor
-                    my widget checkbutton    do_toc  -variable (do_toc)    -text "Generate ToC"
-                    my widget checkbutton    do_js   -variable (do_js)     -text "Inline JS"
-                    my widget checkbutton    do_css  -variable (do_css)    -text "Inline CSS"
-                    my widget checkbutton    do_img  -variable (do_img)    -text "Inline images"
+                w frame wrapper -padding 10 {
+                    my widget FilesChooser   files   -listvariable (files) -text "Choose HTML file"   -multiple yes
+                    my frame selections -text " Selections: " {
+                        # the -variable args work because of [w upvar ""] in the constructor
+                        my widget checkbutton    do_toc  -variable (do_toc)    -text "Generate ToC"
+                        my widget checkbutton    do_js   -variable (do_js)     -text "Inline JS"
+                        my widget checkbutton    do_css  -variable (do_css)    -text "Inline CSS"
+                        my widget checkbutton    do_img  -variable (do_img)    -text "Inline images"
+                    }
                 }
 
                 w onchange (do_js) {puts lalala:\$(do_js)}
@@ -724,18 +782,17 @@ set demos {
                 set (do_css) 1
                 set (do_img) 1
 
-                w frame buttons
-
-                #map {w grid} {files do_toc do_js do_css do_img buttons}
-
-                w buttons grid [
-                    w buttons widget button bCancel -text "Cancel"  -command [my Callback Return Cancel]
-                ] [
-                    w buttons widget button bOops -text "Something"  -command [my Callback Return Something]
-                ] [
-                    w buttons widget button bOkay   -text "Okay"    -command [my Callback Return Okay]      -default active
-                ]
+                my buttons {
+                    my button "Cancel"
+                    my button "Something"
+                    my button "Okay"    -default active
+                }
             }
+
+            method Something {} {
+                my dialog "There once was a sailor!"
+            }
+
 
         }
 
@@ -747,32 +804,13 @@ set demos {
 
         proc run_form {class {w toplevel}} {
             set form [$class new $w]
-            while 1 {
-                set rc [$form wait]
-                switch -exact $rc {
-                    "Okay" {
-                        set data [$form get]
-                        break
-                    }
-                    "Cancel" {
-                        if {(![$form changed?]) || [$form dialog -type yesno -message "Really cancel?"]} {
-                            set data ""     ;# empty return value indicates cancelled form
-                            break
-                        }
-                    }
-                    default {
-                        $form dialog "Unknown message: $rc"
-                    }
-                }
-            }
+            set data [$form wait]
             $form destroy
             return $data
         }
         coroutine main {*}[namespace code {
-#            toplevel .form
-#            pack [ttk::frame .form.f -padding 10] -in .form
-#            set d [run_form Inliner .form.f]
-            set d [run_form Inliner toplevel]
+            #set d [run_form Inliner toplevel]
+            set d [Inliner run toplevel]
             if {$d eq ""} {
                 puts "Form cancelled!"
             } else {
