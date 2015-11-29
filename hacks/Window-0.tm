@@ -93,7 +93,7 @@ pkg -export * Window {
             }
             set griddefaults {}
 
-            bind $w <Destroy> [list catch [my callback Reaper %W]]  ;# we still need to catch
+            bind $w <Destroy> [list catch [callback my Reaper %W]]  ;# we still need to catch
                                                                     ;# because tear-down order
             return [self]
         }
@@ -104,10 +104,6 @@ pkg -export * Window {
         }
 
         export varname  ;# this will be useful for consumers
-                        ;# as will this:
-        method callback {method args} {
-            namespace code [list my $method {*}$args]
-        }
 
         method eval {script} {
             try $script
@@ -595,16 +591,16 @@ set demos {
             }
 
             method SetTrace {varname} {
-                trace remove variable [my varname $varname] write "[my callback HandleTrace $varname]; --"
-                trace remove variable [my varname $varname] unset "[my callback SetTrace $varname]; --"
-                trace add variable [my varname $varname] write "[my callback HandleTrace $varname]; --"
-                trace add variable [my varname $varname] unset "[my callback SetTrace $varname]; --"
+                trace remove variable [my varname $varname] write "[callback my HandleTrace $varname]; --"
+                trace remove variable [my varname $varname] unset "[callback my SetTrace $varname]; --"
+                trace add variable [my varname $varname] write "[callback my HandleTrace $varname]; --"
+                trace add variable [my varname $varname] unset "[callback my SetTrace $varname]; --"
             }
 
             method HandleTrace {varname} {
                 variable Triggers
                 dict incr Triggers $varname
-                after 0 [list after idle [my callback Trigger]]
+                after 0 [list after idle [callback my Trigger]]
             }
             method Trigger {} {
                 variable Triggers
@@ -640,10 +636,6 @@ set demos {
         oo::class create ::FormBase {
 
             variable {} ;# the form
-
-            method Callback {method args} {
-                namespace code [list my $method {*}$args]
-            }
 
             constructor {args} {
                 FormWidget create w {*}$args    ;# FIXME: use args better than just for this
