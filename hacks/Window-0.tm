@@ -807,20 +807,7 @@ set demos {
 
         }
 
-        catch {
-            source [file normalize [info script]/../../modules/inspect-0.tcl]
-            pdict [inspect Inliner]
-        }
-
-
-        proc run_form {class {w toplevel}} {
-            set form [$class new $w]
-            set data [$form wait]
-            $form destroy
-            return $data
-        }
         coroutine main {*}[namespace code {
-            #set d [run_form Inliner toplevel]
             set d [Inliner run toplevel]
             if {$d eq ""} {
                 puts "Form cancelled!"
@@ -830,22 +817,12 @@ set demos {
             }
         }]
 
-if 0 {
-        puts "lalala"
-        toplevel .form
-        pack [ttk::frame .form.f -padding 10] -in .form
-        coroutine run {*}[namespace code {
-            puts "lololo"
-            puts [namespace which Inliner]
-            puts [info object call Inliner run]
-            Inliner run .form.f
-            puts "lilili"
-            incr ::done
-        }]
-        puts "lululu"
-        vwait done
-        puts "lolwat"
-}
+        catch {
+            source [file normalize [info script]/../../modules/inspect-0.tcl]
+            puts "== inspecting Inliner =="
+            pdict [inspect Inliner]
+            puts ""
+        }
     }
 }
 
