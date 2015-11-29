@@ -41,6 +41,13 @@
 #
 # I almost want to make these namespace ensembles rather than objects
 #
+# TODO:
+#   * ttk-ify everything
+#     * panedwindow container
+#     * notebook container
+#   * tooltips!
+#   * some kind of options support
+#
 package require Tk
 package require snidgets
 

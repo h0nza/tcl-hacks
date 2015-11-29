@@ -187,6 +187,11 @@ apply {{} {
     #bind all <<Submit>> {puts Sbmit!%W}
     #bind all <<Cancel>> {puts Cancl!%W}
 
+# TODO:
+    # further text improvements from http://wiki.tcl.tk/14918
+    # treeview RowSelect events from http://wiki.tcl.tk/24636
+    # treeview search by typing from http://wiki.tcl.tk/20065
+
 # set up some better default options
     set defaultBackground [ttk::style configure . -background]
     set defaultBackground [ttk::style lookup . -background active]
