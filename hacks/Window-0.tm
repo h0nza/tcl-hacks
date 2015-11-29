@@ -708,16 +708,12 @@ set demos {
             }
 
             method Cancel {} {
-                puts "Cancel?"
                 if {![my changed?] || [my ConfirmCancel]} {
                     my Return ""
                 }
             }
 
-            forward Okay my Submit
-
             method Submit {} {
-                puts "Submit!"
                 if {![my Validate]} {
                     # highlight errors
                     my dialog -type okay -message "Please complete the form before pressing Okay"
@@ -800,7 +796,7 @@ set demos {
                 my buttons {
                     my button "Cancel"
                     my button "Something"
-                    my button "Okay"    -default active
+                    my button Submit -text "Okay"    -default active
                 }
             }
 
