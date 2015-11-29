@@ -175,7 +175,7 @@ pkg -export * Window {
         method autolayout args {
             multiargs {
                 {packer args} {
-                    if {![dict exists $args -in]} {my GM $packer}
+                    my GM $packer [my GetIn $args]
                     set autolayout [list $packer {*}$args]
                 }
                 {} {
@@ -192,21 +192,36 @@ pkg -export * Window {
             set griddefaults $args
         }
 
-        method GM {args} {
-            variable GM
-            if {$args eq ""} {
-                debug assert {$GM ne ""}
-                return [list [self] $GM]    ;# returns a commandprefix to its own method
+        method GM args {
+            multiargs {
+                {} {
+                    list [self] [dict get $GM $w]
+                }
+                {packer container} {
+                    if {![string match .* $container]} {
+                        set container [$container w]
+                    }
+                    if {[info exists GM] && [dict exists $GM $container]} {
+                        set gm [dict get $GM $container]
+                        if {$gm ne $packer} {
+                            throw {GM CONFLICT} "Geometry manager is already $gm!"
+                        }
+                    }
+                    dict set GM $container $packer
+                }
+            }
+        }
+        method GetIn {opts} {
+            set idx [lsearch -exact $opts -in]
+            if {$idx == -1} {
+                return $w
             } else {
-                debug assert {[llength $args] eq 1}
-                lassign $args arg
-                debug assert {![info exists GM] || ($GM in [list "" $arg])}
-                set GM $arg
+                lindex $opts $idx+1
             }
         }
 
         method grid {cmd args} {
-            if {![dict exists $args -in]} {my GM grid}
+            my GM grid [my GetIn $args]
             if {$cmd in "anchor bbox location size propagate slaves configure rowconfigure columnconfigure forget"} {
                 grid $cmd $w {*}[my ItemArgs {*}$args]
             } else {
@@ -214,7 +229,7 @@ pkg -export * Window {
             }
         }
         method pack {cmd args} {
-            if {![dict exists $args -in]} {my GM pack}
+            my GM pack [my GetIn $args]
             if {$cmd in "propagate slaves forget"} {
                 pack $cmd $w {*}[my ItemArgs {*}$args]
             } else {
