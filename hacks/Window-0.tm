@@ -61,6 +61,7 @@ package require tkImprover
 
 pkg -export * Window {
 
+    proc putl args {puts $args}
 
     proc callback {args} {
         tailcall namespace code $args
@@ -357,7 +358,7 @@ pkg -export * Window {
             oo::objdefine [self] variable $name
             set upvar [uplevel 1 namespace current]::$name 
             set myvar [my varname $name]
-            upvar 1 $upvar $myvar
+            upvar 0 $upvar $myvar
             return $myvar
         }
 
@@ -639,6 +640,7 @@ set demos {
 
             constructor {args} {
                 FormWidget create w {*}$args    ;# FIXME: use args better than just for this
+                #array set {} {}
                 w upvar {}
                 w method frame {name args} {
                     set script [lindex $args end]
@@ -754,7 +756,7 @@ set demos {
         oo::class create ::FormClass {
             superclass oo::class
             self method create {name script} {
-                set script "superclass ::FormBase; $script"
+                set script "superclass ::FormBase; variable {}; $script"
                 next $name $script
             }
 
@@ -794,13 +796,13 @@ set demos {
 
                 my buttons {
                     my button "Cancel"
-                    my button "Something"
+                    my button "Show"
                     my button Submit -text "Okay"    -default active
                 }
             }
 
-            method Something {} {
-                my dialog "There once was a sailor!"
+            method Show {} {
+                my dialog "[array get {}]"
             }
 
 
