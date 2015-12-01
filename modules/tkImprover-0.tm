@@ -1,6 +1,12 @@
 # most of this is from marsgui by WHD @ JPL:  http://wiki.tcl.tk/41820
 #   git://github.com/AthenaModel/mars
 #   lib/marsgui/global.tcl
+#
+# See also:
+#   * user interface guidelines from http://wiki.tcl.tk/41773
+#   * further text improvements from http://wiki.tcl.tk/14918
+#   * treeview RowSelect events from http://wiki.tcl.tk/24636
+#   * treeview search by typing from http://wiki.tcl.tk/20065
 
 # widgets should take focus when clicked on
 
@@ -187,10 +193,6 @@ apply {{} {
     #bind all <<Submit>> {puts Sbmit!%W}
     #bind all <<Cancel>> {puts Cancl!%W}
 
-# TODO:
-    # further text improvements from http://wiki.tcl.tk/14918
-    # treeview RowSelect events from http://wiki.tcl.tk/24636
-    # treeview search by typing from http://wiki.tcl.tk/20065
 
 # set up some better default options
     set defaultBackground [ttk::style configure . -background]
@@ -208,5 +210,9 @@ apply {{} {
         -fieldbackground [list readonly $defaultBackground \
                                disabled $defaultBackground]
 
+    # the default TButton minwidth of 11 is too big:
+    ttk::style configure My.TButton -width -8
+
+    # tearoff menus suck:
     option add *Menu.tearOff                    no
 }}

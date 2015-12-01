@@ -61,6 +61,8 @@ package require tkImprover
 
 pkg -export * Window {
 
+    ::ttk::style theme use alt
+
     proc putl args {puts $args}
 
     proc callback {args} {
@@ -72,6 +74,7 @@ pkg -export * Window {
     oo::class create Widget {
         variable w
         constructor {cmd args} {
+            namespace path [linsert [namespace path] end ::ttk]
             # if the first argument is a window path, we adopt that window
             # otherwise, it is a window constructor
             if {[string match .* $cmd]} {
@@ -226,7 +229,17 @@ pkg -export * Window {
 
         method grid {cmd args} {
             my GM grid [my GetIn $args]
-            if {$cmd in "anchor bbox location size propagate slaves configure rowconfigure columnconfigure forget"} {
+            if {$cmd eq "anchor"} {
+                multiargs {
+                    {slave} {
+                        grid $cmd [my WinArg $slave]
+                    }
+                    {slave anchor} {
+                        grid $cmd [my WinArg $slave] $anchor
+                    }
+                }
+            } elseif {$cmd in "bbox location size propagate slaves configure rowconfigure columnconfigure forget"} {
+                putl grid $cmd $w {*}[my ItemArgs {*}$args]
                 grid $cmd $w {*}[my ItemArgs {*}$args]
             } else {
                 grid {*}[my GridArgs $cmd {*}$args] ;#-in $w
@@ -241,25 +254,37 @@ pkg -export * Window {
             }
         }
         method ItemArgs {args} {
-            set i 0
-            set args [lmap a $args {
-                if {[string match -* $a]} {
-                    incr i
-                }
-                expr {$i ? $a : [my WinArg $a]}
-            }]
+            set j [lsearch -glob $args -*]
+            if {$j == -1} {
+                set preargs $args
+                set opts {}
+            } else {
+                set preargs [lrange $args 0 [expr {$j-1}]]
+                set opts [lrange $args $j end]
+            }
+            puts "preargs = $preargs"
+            set preargs [lmap a $preargs {my WinArg $a}]
+            puts "postargs = $preargs"
+            if {[dict exists $opts -in]} {
+                dict set opts -in [my WinArg [dict get $opts -in]]
+            }
+            concat $preargs $opts
         }
         method GridArgs {args} {
-            set i 0
-            array set def $griddefaults
-            set args [lmap a $args {
-                if {[string match -* $a]} {
-                    unset -nocomplain def($a)
-                    incr i
-                }
-                expr {$i ? $a : [my WinArg $a]}
-            }]
-            concat $args [array get def]
+            set j [lsearch -glob $args -*]
+            if {$j == -1} {
+                set preargs $args
+                set opts {}
+            } else {
+                set preargs [lrange $args 0 [expr {$j-1}]]
+                set opts [lrange $args $j end]
+            }
+            set preargs [lmap a $preargs {my WinArg $a}]
+            set opts [dict merge $griddefaults $opts]
+            if {[dict exists $opts -in]} {
+                dict set opts -in [my WinArg [dict get $opts -in]]
+            }
+            concat $preargs $opts
         }
         method WinArg {w} {
             if {[string match .* $w]} {
@@ -572,6 +597,7 @@ set demos {
             variable Conditions
 
             constructor args {
+                namespace path [linsert [namespace path] end ::ttk]
                 next {*}$args
             }
 
@@ -639,12 +665,17 @@ set demos {
             variable {} ;# the form
 
             constructor {args} {
+                namespace path [linsert [namespace path] end ::ttk]
                 FormWidget create w {*}$args    ;# FIXME: use args better than just for this
                 #array set {} {}
                 w upvar {}
                 w method frame {name args} {
-                    set script [lindex $args end]
-                    set args [lreplace $args end end]
+                    if {[llength $args] % 2} {
+                        set script [lindex $args end]
+                        set args [lreplace $args end end]
+                    } else {
+                        set script ""
+                    }
                     if {[dict exists $args -text] || [dict exists $args -labelwidget]} {
                         set win [my widget ::ttk::labelframe $name {*}$args]
                     } else {
@@ -652,11 +683,13 @@ set demos {
                     }
                     set win [$name w]
 
-                    set al [my autolayout]
-                    my autolayout {*}$al -in $win
-                    try {
-                        my eval $script
-                    } finally [callback my autolayout {*}$al]
+                    if {$script ne ""} {
+                        set al [my autolayout]
+                        my autolayout {*}$al -in $win
+                        try {
+                            my eval $script
+                        } finally [callback my autolayout {*}$al]
+                    }
                 }
 
                 my Construct
@@ -774,7 +807,10 @@ set demos {
 
             method Construct {} {
                 w autolayout grid -sticky nsew
-                w frame wrapper -padding 10 {
+                w frame wrapper -padding 10 
+                w grid anchor wrapper center
+                w autolayout grid -sticky nsew -in [w wrapper w]
+                w eval {
                     my widget FilesChooser   files   -listvariable (files) -text "Choose HTML file"   -multiple yes
                     my frame selections -text " Selections: " {
                         # the -variable args work because of [w upvar ""] in the constructor
@@ -789,11 +825,12 @@ set demos {
                 w condition do_js -state {$(do_toc)} normal disabled
                 #w condition selections 
 
-                set (do_toc) 1
+                set (do_toc) 0
                 set (do_js)  1
                 set (do_css) 1
                 set (do_img) 1
 
+                w autolayout grid -sticky nsew
                 my buttons {
                     my button "Cancel"
                     my button "Show"
@@ -845,6 +882,11 @@ proc run_demo {key} {
     catch {namespace delete ::demo}
     namespace eval ::demo {}
     apply [list {} $script ::demo]
+}
+
+if 1 {
+    package require tkcon
+    tkcon show
 }
 
 if {$::argv eq ""} {
