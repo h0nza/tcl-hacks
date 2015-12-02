@@ -61,8 +61,6 @@ package require tkImprover
 
 pkg -export * Window {
 
-    ::ttk::style theme use alt
-
     proc putl args {puts $args}
 
     proc callback {args} {
