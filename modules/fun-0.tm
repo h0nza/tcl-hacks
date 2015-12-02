@@ -7,6 +7,8 @@
 #
 package require Tcl 8.6
 
+package require options
+
 namespace eval fun {
 
     proc K {a args} {set a}
@@ -20,11 +22,28 @@ namespace eval fun {
     }
 
 
-    package require lambda
+    #package require lambda
+    # copied straight out of tcllib, to avoid the dependency
+    ## Originally (C) 2011 Andreas Kupries, BSD licensed.
+    proc lambda {arguments body args} {
+        list ::apply [list $arguments $body] {*}$args
+    }
+    proc lambda@ {namespace arguments body args} {
+        list ::apply [list $arguments $body $namespace] {*}$args
+    }
 
     ##namespace import ::tcl::mathop::*
     #namespace import ::tcl::mathfunc::*
     namespace path ::tcl::mathfunc
+
+    # convenience function for printing lists (handy for debugging!)
+    proc putl {args} {
+        puts $args
+    }
+
+    proc callback {args} {
+        tailcall namespace code $args
+    }
 
     # max and min should be able to take list arguments!
     proc max {args} {
@@ -50,6 +69,17 @@ namespace eval fun {
         }
         return $model
     }
+
+    # mimic's textutil::adjust::undent
+    proc undent {text} {
+        set pres [regexp -inline -all -linestop -lineanchor {^.*?(?=\S)} $text]
+        set pre [common_prefix $pres]
+        regsub -all -linestop -lineanchor "^$pre" $text "" text
+        set text [string trimleft $text \n]
+        set text [string trimright $text " \t"]
+        return $text
+    }
+
 
     # local aliases that respect namespaces
     proc alias {alias cmd args} {
@@ -151,26 +181,75 @@ namespace eval fun {
         return -code error "$cmd is not a namespace ensemble or object!"
     }
 
+    # cd with automatic return
+    proc indir {dir script} {
+        set return [list ::cd [pwd]]
+        cd $dir
+        tailcall try $script finally $return
+    }
 
-    # these needs some options ..
-    proc readfile {filename} {
-        set fd [open $filename r]
-        try {
-            read $fd
-        } finally {
-            close $fd
+
+    # we can't import ::readfile in safe interps created by interps-0.tm, so check for it:
+    if {[namespace which -command ::readfile] eq ""} {
+        proc readfile args {
+            options {-oflags RDONLY} {-encoding utf-8} {-translation auto} {-eofchar ""}    ;# sensible defaults
+            arguments {filename}
+
+            set fd [open $filename $oflags]
+            fconfigure $fd -encoding $encoding -translation $translation -eofchar $eofchar
+
+            try {
+                read $fd
+            } finally {
+                close $fd
+            }
         }
     }
-    proc writefile {filename data} {
+
+    proc writefile args {
+        options {-oflags {WRONLY CREAT}} {-encoding utf-8} {-translation auto} {-eofchar ""}    ;# sensible defaults
+        arguments {filename data}
+
         # always mkdir - some vfs's don't respond well if we don't
         file mkdir [file dirname $filename]
-        set fd [open $filename w]
+
+        set fd [open $filename $oflags]
+        fconfigure $fd -encoding $encoding -translation $translation -eofchar $eofchar
+
         try {
             puts -nonewline $fd $data
         } finally {
             close $fd
         }
     }
+
+    # ensures that $path is under $top (modulo symlinks - use [file normalize] for those)
+    proc path_contains {top path} {
+        # exact match is okay:
+        if {$path eq $top} {
+            return true
+        }
+        append top /
+        set len [string length $top]
+        # adjacent similarly-named directory is not okay
+        if {[string compare -length $len $top $path]} {
+            return false
+        }
+        # ensure no escape with ..
+        set path [string range $path $len end]
+        set depth 0
+        foreach part [file split $path] {
+            if {$part eq ".."} {
+                incr depth -1
+                if {$depth < 0} {return false}
+            } else {
+                incr depth
+            }
+        }
+        # otherwise, it's safe!
+        return true
+    }
+
 
     proc divmod {a b} {
         list [expr {$a/$b}] [expr {$a % $b}]
@@ -222,7 +301,7 @@ namespace eval fun {
         yieldto string cat $value
     }
 
-    -- proc func args {
+    proc func args {
         set expr [lindex $args end]
         set args [lrange $args 0 end-1]
         tailcall proc {*}$args [list expr $expr]
@@ -314,6 +393,20 @@ namespace eval fun {
 
     proc ldiff {a b} {
         lmap elem $a { expr {$elem in $b ? [continue] : $elem} }
+    }
+
+    proc union {a b} {
+        concat $a [lmap x $b {
+            if {$x in $a} continue
+            set x
+        }]
+    }
+
+    proc intersect {a b} {
+        lmap x $a {
+            if {$x ni $b} continue
+            set x
+        }
     }
 
     # With 3+ arguments, this should be more like
@@ -620,6 +713,21 @@ if 0 {
         tailcall zip {*}$args
     }
 
+    proc transpose {lol} {
+        # zip {*}$lol
+        set res {}
+        set r [set c -1]
+        foreach row $lol {
+            incr r
+            foreach v $row {
+                incr c
+                lset res $c $r $v
+            }
+            set c -1
+        }
+        return $res
+    }
+
     # normal map, but does multiple arguments:
     #  % map {expr} {1 2 3} {+ - *} {2 4 5}
     #  {3 -2 15}
@@ -821,6 +929,21 @@ if 0 {
         set stack
     }
 
+    # cartesian product of a list of lists
+    # adapted from http://wiki.tcl.tk/2546
+    proc cprod {lol} {
+        set xs {{}}
+        foreach ys $lol {
+            set result {}
+            foreach x $xs {
+                foreach y $ys {
+                    lappend result [list {*}$x $y]
+                }
+            }
+            set xs $result
+        }
+        return $xs
+    }
 
     proc ssplit {str substr} {
         set res {}
@@ -908,18 +1031,26 @@ if 0 {
         tailcall return {*}$args -code error -errorcode $code $msg
     }
 
+    proc quote_glob {s} {
+        regsub -all {[?*{}\[\]~\\]} $s {\\\0}
+    }
+    proc quote_regex {str} {
+        regsub -all {[][$^?+*()|\\.]} $str {\\\0}
+    }
+
     namespace export *
 }
 
 namespace import ::fun::*    ;# eeek!
 
-if {[info exists ::argv0] && $::argv0 eq [info script]} {
-    tcl::tm::path add [pwd]
+package require mainscript
+if {[mainscript?]} {
+    #tcl::tm::path add [pwd]
     package provide fun 0
     package require tests
     tests {
-        -- func odd? {n} {$n%2}
-        -- func even? {n} {![odd? $n]}
+        func odd? {n} {$n%2}
+        func even? {n} {![odd? $n]}
 
         test lfilter-1 "lfilter" -body {
             lfilter even? {1 2 3 4 5 6 7 8 9}
@@ -968,5 +1099,11 @@ if {[info exists ::argv0] && $::argv0 eq [info script]} {
             }
             list [catch foo r o] $r [dict get $o -errorcode]
         } -result {1 {your mojo is no good!} {BAD JUJU}}
+
+        test pathcontains-1 "path contains test battery" -body {
+            set top [pwd]
+            lappend tests ${top} ${top}a ${top}/a [string replace $top end end] [file join $top a b .. c .. ..] [file join $top a .. b .. ..]
+            lmap t $tests {path_contains $top $t}
+        } -result {true false true false true false}
     }
 }

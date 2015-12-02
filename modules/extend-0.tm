@@ -5,7 +5,7 @@
 #  (eg [array foreach])
 #
 package require fun
-package require debug
+package require adebug
 
 # helper to make quoting less odious
 if {[info commands Uplevel] eq ""} {
@@ -13,7 +13,7 @@ if {[info commands Uplevel] eq ""} {
 }
 
 proc extend {ens script} {
-    ::namespace eval $ens [concat {
+    namespace eval $ens [concat {
         proc _unknown {ens cmd args} {
             if {$cmd in [::namespace eval ::${ens} {::info commands}]} {
                 ::set map [::namespace ensemble configure $ens -map]
@@ -23,7 +23,7 @@ proc extend {ens script} {
             ::return "" ;# back to namespace ensemble dispatch
         }
     }   \; $script]
-    ::namespace ensemble configure $ens -unknown ${ens}::_unknown
+    namespace ensemble configure $ens -unknown ${ens}::_unknown
 }
 
 extend dict {
@@ -45,6 +45,20 @@ extend dict {
     proc get? {d args} {
         if {$args eq ""} {return $d}
         if {[dict exists $d {*}$args]} {dict get $d {*}$args}
+    }
+
+    # like dict get, but matches with glob patterns in the dict
+    # *not* similar to [dict filter keys]
+    proc glob {dict key args} {
+        dict for {k v} $dict {
+            if {[string match $k $key]} {
+                if {$args eq ""} {
+                    return $v
+                } else {
+                    tailcall [glob $dict {*}$args]
+                }
+            }
+        }
     }
 
     # will only set if the kye doesn't already exist
@@ -345,9 +359,9 @@ extend namespace {
     }
 }
 
+# this breaks tcltags. !!??!!?
 extend ::oo::InfoObject {
     proc commands {o args} {
         map {::namespace tail} [info commands [info object namespace $o]::*]
     }
 }
-
