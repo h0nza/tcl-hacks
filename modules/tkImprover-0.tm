@@ -120,6 +120,16 @@ apply {{} {
         set platform "unix"
     }
 
+    # the default theme is a bit crap, particularly on Linux
+    switch $platform {
+        "windows" {
+            ::ttk::style theme use vista
+        }
+        "unix" {
+            ::ttk::style theme use alt
+        }
+    }
+
     # Relate the virtual events to these keystrokes.  Widgets will get
     # the virtual event on the keystroke, unless there's some other
     # keybinding.
@@ -211,7 +221,7 @@ apply {{} {
                                disabled $defaultBackground]
 
     # the default TButton minwidth of 11 is too big:
-    ttk::style configure My.TButton -width -8
+    ttk::style configure TButton -width -8
 
     # tearoff menus suck:
     option add *Menu.tearOff                    no
