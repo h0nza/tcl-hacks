@@ -596,6 +596,8 @@ set demos {
 
             constructor args {
                 namespace path [linsert [namespace path] end ::ttk]
+                set OnChange {}
+                set Conditions {}
                 next {*}$args
             }
 
@@ -663,7 +665,8 @@ set demos {
             variable {} ;# the form
 
             constructor {args} {
-                namespace path [linsert [namespace path] end ::ttk]
+                namespace pa.th [linsert [namespace path] end ::ttk]
+                proc windowcontext {} {}        ;# FIXME: this is a dirty hack
                 FormWidget create w {*}$args    ;# FIXME: use args better than just for this
                 #array set {} {}
                 w upvar {}
