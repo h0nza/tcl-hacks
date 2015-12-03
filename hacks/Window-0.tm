@@ -59,7 +59,7 @@ package require adebug
 package require tkImprover
 
 
-pkg -export * Window {
+pkg -export {[A-Z]*} Window {
 
     proc putl args {puts $args}
 
@@ -665,7 +665,7 @@ set demos {
             variable {} ;# the form
 
             constructor {args} {
-                namespace pa.th [linsert [namespace path] end ::ttk]
+                namespace path [linsert [namespace path] end ::ttk]
                 proc windowcontext {} {}        ;# FIXME: this is a dirty hack
                 FormWidget create w {*}$args    ;# FIXME: use args better than just for this
                 #array set {} {}
