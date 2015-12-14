@@ -159,9 +159,11 @@ namespace eval Event {
 
             switch -exact $option {
                 -x  {
+                    # FIXME: %x, %y should be relative to %W, so they need to be adjusted here!
                     dict set Options -x { -x [expr {$win eq "" ? %X : %x}]}
                 }
                 -y {
+                    # FIXME: %x, %y should be relative to %W, so they need to be adjusted here!
                     dict set Options -y { -y [expr {$win eq "" ? %Y : %y}]}
                 }
                 default {
