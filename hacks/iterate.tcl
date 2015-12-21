@@ -5,9 +5,9 @@
 # I was lamenting the fact that these can't be combined, when a legitimate
 # use of [yieldto yield] occurred to me.  This is that nightmare.
 #
-# Particularly fun:  draw what happens to the coroutine stack when sleepon:chan
-# is used.
-#
+# Particularly fun:  draw what happens to the coroutine stack when
+# [::iterators::yieldfor] is used!
+
 namespace eval iterators {
 
     namespace export {iterate iterator}
@@ -30,38 +30,50 @@ namespace eval iterators {
         coroutine iter#[incr NUM] $cmd {*}$args
     }
 
-    # this is the magic
-    proc ::sleepon:chan {chan} {
-        puts "Yielding [info coroutine] to $chan"
-        chan event $chan readable [list [info coroutine]]
-        yield; tailcall continue
+    # this is the magic.  Example:  [yieldfor fileevent $chan readable]
+    proc ::yieldfor {cmd args} {
+        set cmd [uplevel 1 [list namespace which -command $cmd]]
+        $cmd {*}$args [info coroutine]
+        yield
     }
-    proc sleepon:chan {chan} {
-        puts "Yielding [info coroutine] up the stack"
+
+    # but when used inside an iterator, [yieldfor] means something else
+    proc yieldfor {cmd args} {
+        set cmd [uplevel 1 [list namespace which -command $cmd]]
         yieldto try "
-            [list sleepon:chan $chan]
-            puts {Continuing from [info coroutine]}
+            [list yieldfor $cmd {*}$args]
             continue
         "
     }
 
+    # so we need coroutine::util analogues that use [yieldfor]
+    # for any asynchronous functions we want to use in our generators
+    # this is the 80% solution
     proc gets {chan varname} {
         upvar 1 $varname var
         while 1 {
             if {[::gets $chan x] >= 0} {
-                puts "Gets $chan $varname $x"
                 tailcall set $varname $x
             }
             if {[::chan eof $chan]} {
                 return -1
             }
             if {[::chan blocked $chan]} {
-                sleepon:chan $chan
+                yieldfor ::chan event $chan readable
             }
         }
     }
 
-    # now we just define some iterators.
+    proc after {ms args} {
+        if {$args eq "" && ($ms eq "idle" || [string is digit -strict $ms])} {
+            tailcall yieldfor ::after $ms
+        } else {
+            tailcall ::after $ms {*}$args
+        }
+    }
+
+    # now we just define some iterators to test with.
+    # notice this one uses asynchronous gets!
     iterator input {{chan stdin}} {
         while {[gets $chan line] >= 0} {
             yield $line
@@ -71,16 +83,6 @@ namespace eval iterators {
     iterator range {{n 10}} {
         while {[incr i] < 10} {
             yield $i
-        }
-    }
-
-    proc _yield {args} {
-        if {$args eq ""} {
-            puts "yieldto!"
-            yieldto try {yield; continue}
-        } else {
-            puts "yielding $args"
-            ::yield {*}$args
         }
     }
 
@@ -98,16 +100,13 @@ namespace eval iterators {
     }
 }
 
-namespace eval coroutine::util {
-    namespace import ::iterators::yield
-}
-
 namespace path ::iterators
 
+# notice that
 chan configure stdin -blocking 0
 
 proc main {} {
-    set iter [iterate input]
+    set iter [iterate input stdin]
     set iter [iterate double $iter]
     set iter [iterate double $iter]
     puts "Innermost iter: $iter"
