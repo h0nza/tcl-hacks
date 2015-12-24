@@ -47,7 +47,10 @@ proc <<TablelistRowMoved>> {data} {
     if {$targetParent eq "root" && $targetIndex > 0} {
         set siblingKeys [.t childkeys "root"]
         set parent [lindex $siblingKeys $targetIndex-1]
-        set a [.t get [lindex $siblingKeys $targetIndex]]
+        # special case for dragging to the end:
+        if {$parent eq $sourceIndex} {
+            set parent [lindex $siblingKeys $targetIndex-2]
+        }
         # re-move the row:
         #puts "TablelistRowMoved:  .t move $sourceIndex $parent end"
         after idle [list after 0 [list .t move $sourceIndex $parent end]]
@@ -76,6 +79,7 @@ set r [.t insertchild $r1 end {}]
 set r2 [.t insertchild root end {"Bar" "" bar 1}]
 .t insertchild $r2 end {"" "bar_1.csv"}
 .t insertchild $r2 end {}
+#puts "r1 = $r1; r2 = $r2"
 
 #
 # |   Table Name: | [ foo     ]   | [x] - inspect    |
