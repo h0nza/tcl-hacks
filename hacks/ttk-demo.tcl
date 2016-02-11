@@ -83,7 +83,9 @@ grid [
 
 grid [
     ttk::labelframe .cf -text "Checkbuttons" -padding 4
-] - ^ -padx 6 -pady 6 -sticky nsew
+] - [
+    ttk::labelframe .kf -text "Keypress display" -padding 4
+] -padx 6 -pady 6 -sticky nsew
 
     grid [
         ttk::checkbutton .cf.b1 -text "Normal Button"
@@ -95,6 +97,10 @@ grid [
         ttk::checkbutton .cf.bt2 -text "Tool 2" -style Toolbutton
     ] [
         ttk::checkbutton .cf.bt3 -text "Disabled 3" -style Toolbutton -state disabled
+    ] -sticky nsew
+
+    grid [
+        ttk::label .kf.key -anchor center
     ] -sticky nsew
 
 grid [
@@ -262,7 +268,10 @@ grid [
     ::ttk::treeview .tvf.tv -columns {Theme} -show {headings}
 ] -sticky nsew -padx 4 -pady 4
 
-foreach style [::ttk::style theme names] {
+set styles [::ttk::style theme names]
+.tvf.tv configure -height [llength $styles]
+
+foreach style $styles {
     .tvf.tv insert {} end -id $style -text $style -values [list "Use the \"$style\" theme"]
 }
 
@@ -273,3 +282,9 @@ bind .tvf.tv <<TreeviewSelect>> {
     ::ttk::style theme use [%W selection]
 }
 
+bind all  <Key> {
+    .kf.key configure -text "You pressed %K\n(keycode %k)"
+}
+bind all  <Button> {
+    .kf.key configure -text "Button %b"
+}
