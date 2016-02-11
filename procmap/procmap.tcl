@@ -341,6 +341,9 @@ namespace eval procmap {
         set maxfirst [map {string cat ::} $maxfirst]
         set avoid [map {string cat ::} $avoid]
         set doms [map {string cat ::} $doms]
+        ;# FIXME: need to examine namespaces other than root to catch
+        ;#  ::oo::define, ::tcl::mathfunc::* etc.  But I should take some care
+        ;#  to not double-count (or worse: double-examine) ensemble subcommands
         set procs [lsort [dict keys [procmap::procmap]]]
         set Procs $procs
 
