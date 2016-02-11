@@ -59,7 +59,7 @@ proc <<TablelistRowMoved>> {data} {
 
 grid [tablelist .t \
             -treestyle plastik \
-            -columns {0 table 0 filename 0 title 0 checkbox} \
+            -columns {0 table 0 filename} \
             -movablerows 1 \
             -selectmode single \
             -acceptdropcommand acceptDropCmd \
@@ -71,12 +71,12 @@ grid rowconfigure    . 0 -weight 1
 grid columnconfigure . 0 -weight 1
 bind .t <<TablelistRowMoved>> {<<TablelistRowMoved>> %d}
 
-set r1 [.t insertchild root end {"Foo" "" foo 1}]
+set r1 [.t insertchild root end {"Foo" ""}]
 .t insertchild $r1 end {"" "foo_1.csv"}
 .t insertchild $r1 end {"" "foo_2.csv"}
 set r [.t insertchild $r1 end {}]
 #.t rowconfigure $r -hide 1
-set r2 [.t insertchild root end {"Bar" "" bar 1}]
+set r2 [.t insertchild root end {"Bar" ""}]
 .t insertchild $r2 end {"" "bar_1.csv"}
 .t insertchild $r2 end {}
 #puts "r1 = $r1; r2 = $r2"
