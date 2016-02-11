@@ -48,6 +48,66 @@ pkg chans {
         namespace ensemble create -parameters what
     }
 
+    oo::class create fifo {
+        variable Block
+        variable Watch
+        variable Data
+        variable Size
+        constructor {{size 1}} {
+            set Block 1
+            set Watch {}
+            set Size $size
+            set Data {}
+        }
+        method Postevent {chan event} {
+            if {$event in $Watch} {
+                chan postevent $chan $event
+            }
+        }
+        method data {} {
+            return $Data
+        }
+        method initialize {chan mode} {
+            return {initialize finalize blocking watch read write}
+        }
+        method finalize {chan} {
+            my destroy
+        }
+        method blocking {chan mode} {
+            set Block $mode
+        }
+        method watch {chan events} {
+            set Watch $events
+        }
+        method read {chan bytes} {
+            if {$Data eq ""} {
+                #puts REAGAIN
+                error EAGAIN
+            }
+            set data [lpop Data]
+            #puts "READ: $data"
+            if {[llength $Data] < $Size} {
+                my Postevent $chan "write"
+            }
+            if {$Data ne ""} {
+                my Postevent $chan "read"
+            }
+            return $data
+        }
+        method write {chan data} {
+            if {[llength $Data] >= $Size} {
+                #puts WEAGAIN
+                error EAGAIN
+            }
+            #puts "WRITE: $data"
+            lappend Data $data
+            my Postevent $chan "read"
+            if {[llength $Data] < $Size} {
+                my Postevent $chan "write"
+            }
+            string length $data
+        }
+    }
 
     proc eachobj {_obj chan script} {
         upvar 1 $_obj obj
@@ -96,4 +156,19 @@ pkg chans {
     }
 
 
+}
+
+if 0 {
+    chans::fifo create fi 2
+    set fd [chan create {read write} fi]
+    chan configure $fd -buffering line -blocking 0
+    foreach i {0 1 2} {
+        puts $fd lalala$i
+        puts put$i:[fi data]
+        flush $fd
+    }
+    foreach i {0 1 2 3} {
+        puts line$i:[gets $fd line]:$line
+        puts get$i:[fi data]
+    }
 }
