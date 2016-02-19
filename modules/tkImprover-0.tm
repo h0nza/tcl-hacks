@@ -12,6 +12,30 @@
 
 bind all <1> {+catch {if {[%W cget -takefocus] ne 0} {puts "Focusing %W"; focus %W}}}
 
+# workaround for https://core.tcl.tk/tk/tktview/3009450fffffffffffffffffffffffffffffffff
+# FIXME: this assumes the parent is normally -disabled 0.
+rename grab _grab
+proc grab {args} {
+    switch -glob -- [lindex $args 0] {
+        set - -* {
+            set win [lindex $args end]
+            set parent [wm transient $win]
+            if {$parent ne ""} {
+                wm attributes $parent -disabled 1
+            }
+        }
+        release {
+            set win [lindex $args end]
+            set parent [wm transient $win]
+            if {$parent ne ""} {
+                wm attributes $parent -disabled 0
+            }
+        }
+    }
+    tailcall _grab {*}$args
+}
+
+
 # helper for re-binding events
 namespace eval Events {
 
