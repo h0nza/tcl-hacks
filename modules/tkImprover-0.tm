@@ -17,7 +17,7 @@ bind all <1> {+catch {if {[%W cget -takefocus] ne 0} {puts "Focusing %W"; focus 
 rename grab _grab
 proc grab {args} {
     switch -glob -- [lindex $args 0] {
-        set - -* {
+        set - .* - -* {
             set win [lindex $args end]
             set parent [wm transient $win]
             if {$parent ne ""} {
