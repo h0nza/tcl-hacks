@@ -22,6 +22,9 @@ proc grab {args} {
             set parent [wm transient $win]
             if {$parent ne ""} {
                 wm attributes $parent -disabled 1
+                # HaO 2016-02-22: if grabbed window is destroyed before grab is released
+                # (which is ok for standard grab), the parent window must be re-enabled
+                bind $win <Destroy> +[list wm attributes $parent -disabled 0]
             }
         }
         release {
