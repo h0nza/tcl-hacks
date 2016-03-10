@@ -46,19 +46,25 @@ oo::class create PkgMapper {
 }
 
 if 1 {
-    proc test {path} {
+    proc test {args} {
+        # get the packages already known:
         catch {package require { none such }}
         set before [package names]
 
+        # redirect [package]:
         set pm [PkgMapper new :package]
         rename package :package
         interp alias {} package {} $pm package
 
-        lappend ::auto_path $path
-        ::tcl::tm::path add $path
+        # add to the path
+        lappend ::auto_path {*}$args
+        ::tcl::tm::path add {*}$args
+
+        # get the new package names:
         catch {package require { none too }}
         set after [package names]
 
+        # take the difference:
         set names [lmap a $after {
             if {$a in $before} continue
             set a
