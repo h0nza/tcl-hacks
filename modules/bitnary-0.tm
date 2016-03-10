@@ -91,7 +91,8 @@ oo::objdefine bitnary {
 }
 
 
-if 1 {
+package require mainscript
+if {[mainscript?]} {
     proc h2b args { binary format H* [join $args ""] }
     proc b2h {data} { binary scan $data H* hex; set hex }
     proc frombinary args { binary format B* [join $args ""] }

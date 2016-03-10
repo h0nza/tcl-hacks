@@ -7,6 +7,7 @@
 #   * further text improvements from http://wiki.tcl.tk/14918
 #   * treeview RowSelect events from http://wiki.tcl.tk/24636
 #   * treeview search by typing from http://wiki.tcl.tk/20065
+package require Tk
 
 # widgets should take focus when clicked on
 

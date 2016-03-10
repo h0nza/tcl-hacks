@@ -8,8 +8,8 @@
 #tcl::tm::path add [pwd]
 package require options
 package require tests
-package require escape
-package require debug   ;# for assert
+package require fun     ;# for quote_regex
+package require adebug  ;# for assert
 
 catch {namespace delete tsv}
 namespace eval tsv {

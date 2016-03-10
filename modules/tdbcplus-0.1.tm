@@ -1,5 +1,5 @@
 package require pkg
-package require debug
+package require adebug
 
 pkg tdbcplus {
     oo::class create tdbcplus {

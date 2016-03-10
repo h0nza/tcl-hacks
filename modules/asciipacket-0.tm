@@ -1,4 +1,4 @@
-source bitnary-0.tm
+package require bitnary
 
 namespace eval asciipacket {
     proc assert {expr} {    ;# for "static" assertions that throw nice errors
@@ -77,6 +77,8 @@ namespace eval asciipacket {
     }
 }
  
+package require mainscript
+if {[mainscript?]} {
 proc test {} {
     set header {
         +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
@@ -118,3 +120,4 @@ proc test {} {
     }
 }
 test
+}
