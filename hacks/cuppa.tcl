@@ -24,10 +24,17 @@ namespace eval cuppa {
         powerpc     ppc
     }
 
+    proc {package vsatisfies} args {
+        set r [package vsatisfies {*}$args]
+        if {$r} {puts vsat($r):$args?}
+        return $r
+    }
+
     proc init_db {{filename ""}} {
 
         sqlite3 db $filename
-        db collate vcompare {package vcompare}
+        db collate  vcompare    {package vcompare}
+        db function vsatisfies  {{package vsatisfies}}
 
         set exists [db onecolumn {
             select count(*) from sqlite_master 
@@ -153,6 +160,7 @@ namespace eval cuppa {
                 from packages p
                 inner join servers s using (server)
                 where name like :name
+                  and vsatisfies(ver, :ver)
                   and (cpu like :cpu
                    or exists (
                     select * from map_cpu
@@ -174,6 +182,7 @@ namespace eval cuppa {
         set where [uplevel 1 {dict create} $where]
         set where [dict merge {
             name % arch % os % cpu %
+            ver 0-
         } $where]
         dict with where {
             db eval [string map [list * [join $fields ,]] $pkgquery]
@@ -215,17 +224,13 @@ namespace eval cuppa {
     }
 
     proc pkg_install {dir pkg args} {
-        if {$args ne "tcl" && [llength $args] ni {0 2}} {
-            throw {TCL WRONGARGS} "Expected: install dir pkg name ?os arch?"
+        lassign [platform] os cpu
+        set ver 0-
+        dict with args {}
+        if {$os eq "tcl"} {
+            set cpu %
         }
-        if {$args eq ""} {
-            lassign [platform] os cpu
-        } elseif {$args eq "tcl"} {
-            lassign {tcl %} os cpu
-        } elseif {[llength $args] == 2} {
-            lassign $args os cpu
-        }
-        pkg_foreach {name ver uri} {name $pkg os $os cpu $cpu} {
+        pkg_foreach {name ver uri} {name $pkg ver $ver os $os cpu $cpu} {
             set path [file join $dir "$name-$ver.tm"]
             puts "Trying $uri -> $path"
             try {
@@ -237,25 +242,30 @@ namespace eval cuppa {
                 break
             }
         }
-        if {![info exists path] || ![file exists $path]} {
-            throw {INSTALL FAILED} "Failed to install $pkg for $os-$cpu"
+        if {![info exists path]} {
+            throw {INSTALL FAILED NOTFOUND} "No candidate $pkg for $os-$cpu"
+        }
+        if {![file exists $path]} {
+            throw {INSTALL FAILED ERROR} "Failed to install $path"
         }
         try {
             set vfsd [vfs::zip::Mount $path $path]
         } on error {} {
             puts "$path is a tcl module: finished!"
             return $path
-        } on ok {} {
-            try {
-                puts "Uncompressing to [file rootname $path]"
-                file copy $path [file rootname $path]
-            } finally {
-                vfs::zip::Unmount $vfsd $path
-            }
-            file delete $path
-            set path [file rootname $path]
-            puts "$path is a tcl package: finished"
         }
+        try {
+            set dest [file rootname $path]
+            if {[file exists $dest]} {
+                error "Destination path exists: [list $dest]"
+            }
+            file copy $path [file rootname $path]
+        } finally {
+            vfs::zip::Unmount $vfsd $path
+        }
+        file delete $path
+        set path [file rootname $path]
+        puts "$path is a tcl package: finished"
         return $path
     }
 
@@ -265,11 +275,10 @@ namespace eval cuppa {
         init_maps
         update_cache
         stat_db
-        puts :[platform]:
-        puts [join [pkg_urls $pkg {*}[platform]] \n]
-        puts :$args:
-        puts [join [pkg_urls $pkg {*}$args] \n]
-        puts ----
+        #puts [join [pkg_urls $pkg {*}[platform]] \n]
+        #puts :$args:
+        #puts [join [pkg_urls $pkg {*}$args] \n]
+        #puts ----
         pkg_install lib $pkg {*}$args
     }
 }
