@@ -8,6 +8,7 @@ if {$::argv ne ""} {
     set ::argv [lassign $::argv ::argv0]
     source $::argv0
 } else {
+    return
     # async repl:
     package require repl
     coroutine main repl::chan stdin stdout stderr
