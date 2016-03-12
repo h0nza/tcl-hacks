@@ -30,12 +30,14 @@ namespace eval cuppa {
         return $r
     }
 
-    proc init_db {{filename ""}} {
-
+    proc db_init {{filename ""}} {
         sqlite3 db $filename
         db collate  vcompare    {package vcompare}
         db function vsatisfies  {{package vsatisfies}}
+        db_setup
+    }
 
+    proc db_setup {} {
         set exists [db onecolumn {
             select count(*) from sqlite_master 
             where type = 'table' and name = 'servers';
@@ -73,7 +75,7 @@ namespace eval cuppa {
         init_maps
     }
 
-    proc stat_db {} {
+    proc db_stat {} {
         db eval {select name from sqlite_master where type = 'table'} {
             db eval "select count(1) count from \"$name\"" {
                 puts "$name: $count records"
@@ -271,10 +273,10 @@ namespace eval cuppa {
 
     proc main {pkg args} {
         puts "Running on [platform::identify] ([platform::generic])"
-        init_db cuppa.db
+        db_init cuppa.db
         init_maps
         update_cache
-        stat_db
+        db_stat
         #puts [join [pkg_urls $pkg {*}[platform]] \n]
         #puts :$args:
         #puts [join [pkg_urls $pkg {*}$args] \n]
