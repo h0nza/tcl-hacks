@@ -1,3 +1,5 @@
+package require platform
+
 namespace eval lib {
 
     proc putl args {puts $args}

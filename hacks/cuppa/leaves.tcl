@@ -277,37 +277,35 @@ namespace eval leaves {
         return ""   ;# failed to mount
     }
 
-    proc find {args} {
-        lib::dictargs args {
-            pkg     %
-            ver     0-
-            path    %
-        }
-        db eval {
-            select path
-            from teapkgs
-            where name like :pkg
-            and vsatisfies(ver, :ver)
-            and path like :path || '%'
-        }
+    db::qproc Find { pkg % ver 0- path % } {
+        select *
+          from teapkgs
+         where 1
+           and name like :pkg
+           and vsatisfies(ver, :ver)
+           and path like :path || '%'
     }
 
-    proc deps {args} {
-        lib::dictargs args {
+    proc find args {
+        Find {path} $args
+    }
+
+    db::qproc Deps {
             pkg     %
             ver     0-
             path    %
-        }
-        set reqs [db onecolumn { 
-            select value 
+    } {
+            select *
             from teameta
               natural join teapkgs
             where name like :pkg
               and vsatisfies(ver, :ver)
               and path like :path || '%'
               and field = ('require')
-        }]
-        set reqs  [lmap r $reqs {parse_req {*}$r}]
+    }
+    proc deps {args} {
+        set reqs [leaves::Deps value $args]
+        set reqs [lmap r $reqs {parse_req {*}$r}]
     }
 
     namespace ensemble create -subcommands {scan deps find}
