@@ -133,7 +133,9 @@ namespace eval cuppa {
         }
     }
 
-    variable pkgquery {
+    db::qproc Find {
+        name %  ver 0-  arch %  os %  cpu % 
+    } {
             with t as (
                 select distinct name, ver, arch, os, cpu, server, 
                     (uri || '/package/name/' || name 
@@ -160,37 +162,11 @@ namespace eval cuppa {
             ) 
             select * from t where ver = (select max(ver) from t)
     }
-    db::qproc find { name %  ver 0-  arch %  os %  cpu % } $pkgquery
 
-    # these want to move towards db-0.tm
-    # but I also want them returning dicts ..
-    proc pkg_select {fields where} {
-        variable pkgquery
-        set select  [db::sargs $fields]
-        set vars    [db::vargs $fields]
-        set where [lib::updo lib::lsub $where]
-        lib::dictargs where {
-            name %  ver 0-  arch %  os %  cpu %
+    proc find {args} {
+        Find {uri} $args {
+            puts "Found at $uri"
         }
-        db eval [string map [list * $fields] $pkgquery]
-    }
-
-    proc pkg_foreach {fields where body} {
-        set script {
-            foreach $fields [pkg_select $fields $where] $body
-        }
-        dict set map \$fields [list $fields]
-        dict set map \$where  [list $where]
-        dict set map \$body   [list $body]
-        tailcall try [string map $map $script]
-    }
-
-    proc pkg_urls {name {os %} {cpu %}} {
-        #init_maps
-        pkg_select {uri} {name $name os $os cpu $cpu}
-    }
-    proc pkg_urls {args} {
-        find {uri} $args
     }
 
     proc platform {} {
@@ -207,26 +183,26 @@ namespace eval cuppa {
     }
 
     proc check_exists {dir name ver} {
-        foreach cmd [info commands [namespace current]::path:*] {
+        foreach cmd [info commands [namespace current]::Path:*] {
             set path [$cmd $dir $name $ver]
             if {[file exists $path]} {return $path}
         }
     }
 
-    proc path:dl {dir name ver} {
+    proc Path:dl {dir name ver} {
         set name [string trimleft $name ::]
         file join $dir [string map {:: _ _ __} "$name-$ver.zip"]
     }
-    proc path:tm {dir name ver} {
+    proc Path:tm {dir name ver} {
         set name [string trimleft $name ::]
         file join $dir [string map {:: /} "$name-$ver.tm"]
     }
-    proc path:dir {dir name ver} {
+    proc Path:dir {dir name ver} {
         set name [string trimleft $name ::]
         file join $dir [string map {:: _ _ __} "$name-$ver"]
     }
 
-    proc pkg_install {dir pkg args} {
+    proc install {dir pkg args} {
         lassign [platform] os cpu
         lib::dictargs args {
             os  $os
@@ -236,12 +212,12 @@ namespace eval cuppa {
         if {$os eq "tcl"} {
             set cpu %
         }
-        pkg_foreach {name ver uri} {name $pkg ver $ver os $os cpu $cpu} {
+        Find {name ver uri} {name $pkg ver $ver os $os cpu $cpu} {
             set loc [check_exists $dir $name $ver]
             if {$loc ne ""} {
-                throw [list CUPPA EXISTS $loc] "Package (might?) exist at \"$loc\""
+                throw [list CUPPA EXISTS $loc] "Package (maybe?) exists at \"$loc\""
             }
-            set path [path:dl $dir $name $ver]
+            set path [Path:dl $dir $name $ver]
             puts "Trying $uri -> $path"
             try {
                 download $path $uri
@@ -253,15 +229,15 @@ namespace eval cuppa {
             }
         }
         if {![info exists path]} {
-            throw {INSTALL FAILED NOTFOUND} "No candidate $pkg for $os-$cpu"
+            throw {CUPPA NOTFOUND} "No candidate $pkg for $os-$cpu"
         }
         if {![file exists $path]} {
-            throw {INSTALL FAILED ERROR} "Failed to install $path"
+            throw {CUPPA ERROR} "Failed to install $path"
         }
         try {
             set vfsd [vfs::zip::Mount $path $path]
         } on error {} {
-            set dest [path:tm $dir $name $ver]
+            set dest [Path:tm $dir $name $ver]
             file rename $path $dest
             set path $dest
             puts "$path is a tcl module: finished!"
@@ -272,7 +248,7 @@ namespace eval cuppa {
             if {[file exists $dest]} {
                 error "Destination path exists: [list $dest]"
             }
-            set dest [path:dir $dir $name $ver]
+            set dest [Path:dir $dir $name $ver]
             file copy $path $dest
         } finally {
             vfs::zip::Unmount $vfsd $path
@@ -285,22 +261,10 @@ namespace eval cuppa {
 
     namespace ensemble create -map {
         update  update_cache
-        find    pkg_urls
-        install pkg_install
+        find    find
+        install install
     }
 
-    proc test {pkg args} {
-        puts "Running on [platform::identify] ([platform::generic])"
-        db::init cuppa.db
-        init_maps
-        update_cache
-        db::stat
-        #puts [join [pkg_urls $pkg {*}[platform]] \n]
-        #puts :$args:
-        #puts [join [pkg_urls $pkg {*}$args] \n]
-        #puts ----
-        pkg_install lib $pkg {*}$args
-    }
 }
 
 
