@@ -105,14 +105,8 @@ namespace eval leaves {
 
     # parses a {Meta require} argument into a dictionary
     #
-    # result can contain:
-    #   {
-    #       is       package 
-    #       pkg      name 
-    #       versions {a- b-c d} 
-    #       platform windows|linux|macosx
-    #       archglob *
-    #   }
+    # result always contains:   {pkg versions}
+    #           may contain:    {is platform archglob}
     proc parse_req {name args} {
 
         # ?ver ...? ?-opt val ...?
@@ -184,6 +178,10 @@ namespace eval leaves {
 
         if {$vers ne ""} {
             set o(-versions) [vsimplify $vers]
+        }
+
+        if {$o(-is) eq "package"} {
+            unset o(-is)
         }
 
         # result:
@@ -300,17 +298,16 @@ namespace eval leaves {
             ver     0-
             path    %
         }
-        set reqs [db eval { 
-            select value as reqs 
-            from            teameta
-              natural join  teapkgs
+        set reqs [db onecolumn { 
+            select value 
+            from teameta
+              natural join teapkgs
             where name like :pkg
               and vsatisfies(ver, :ver)
               and path like :path || '%'
-               and field = ('require')
+              and field = ('require')
         }]
-        set reqs [concat {*}$reqs]
-        return [lmap r $reqs {parse_req {*}$r}]
+        set reqs  [lmap r $reqs {parse_req {*}$r}]
     }
 
     namespace ensemble create -subcommands {scan deps find}
