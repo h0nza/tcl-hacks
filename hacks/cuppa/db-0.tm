@@ -15,6 +15,16 @@ namespace eval db {
         return '[string map {' ''} $s]'
     }
 
+    # decodes a list like {a b:bee c}
+    # into "a as a, b as bee, c as c"
+    proc fargs {fields} {
+        join [lmap f $fields {
+            lassign [split $f :] name alias
+            if {$alias eq ""} {set alias $name}
+            string cat "[qn $name] as [qn $alias]"
+        }] ,
+    }
+
     proc init {{filename ""}} {
         if {[running]} {
             puts "already running"

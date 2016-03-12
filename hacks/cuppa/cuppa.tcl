@@ -161,14 +161,16 @@ namespace eval cuppa {
             select * from t where ver = (select max(ver) from t)
     }
 
+    # these want to move towards db-0.tm
+    # but I also want them returning dicts ..
     proc pkg_select {fields where} {
         variable pkgquery
-        set where [uplevel 1 [lib::lsub $where]]
+        set fields [db::fargs $fields]
+        set where [lib::updo lib::lsub $where]
         lib::dictargs where {
-            name % arch % os % cpu %
-            ver 0-
+            name %  ver 0-  arch %  os %  cpu %
         }
-        db eval [string map [list * [join $fields ,]] $pkgquery]
+        db eval [string map [list * $fields] $pkgquery]
     }
 
     proc pkg_foreach {fields where body} {
