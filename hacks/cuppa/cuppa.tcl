@@ -36,9 +36,7 @@ namespace eval cuppa {
         }
     }
     db::setup {
-        try {
-            db exists {select 1 from servers}
-        } on ok {} {return}
+        if {[db::exists servers]} return
         puts "Setting up cuppa"
         db eval {
             create table if not exists servers (

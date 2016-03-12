@@ -9,9 +9,7 @@ namespace eval billy {
         }
     }
     db::setup {
-        try {
-            db exists {select 1 from packages}
-        } on ok {} {return}
+        if {[db::exists packages]} return
         puts "Setting up billy"
         db eval {
             create table if not exists packages (

@@ -24,6 +24,14 @@ namespace eval db {
         }
     }
 
+    proc tables {{pattern}} {
+        db eval {select name from sqlite_master where type = 'table' and name like :pattern}
+    }
+
+    proc exists {table} {
+        db exists {select 1 from sqlite_master where type = 'table' and name = :pattern}
+    }
+
     proc running {} {
         expr {[info procs [namespace current]::db] eq {}}
     }

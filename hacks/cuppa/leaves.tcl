@@ -21,9 +21,7 @@ namespace eval leaves {
         }
     }
     db::setup {
-        try {
-            db exists {select 1 from teapkgs}
-        } on ok {} {return}
+        if {[db::exists teapkgs]} return
         puts "Setting up leaves"
         db eval {
             create table if not exists teapkgs (
@@ -39,6 +37,7 @@ namespace eval leaves {
                 path text,
                 field text,
                 value text,
+                primary key (path, field),
                 foreign key (path)
                   references pkg_meta (path)
                     on delete cascade
@@ -296,10 +295,20 @@ namespace eval leaves {
         }
     }
 
-    proc deps {path} {
+    proc deps {args} {
+        set where [dict merge {
+            pkg     %
+            ver     0-
+            path    %
+        } $args]
+        dict with where {}
         set reqs [db eval { 
-            select value as reqs from teameta 
-             where path = :path 
+            select value as reqs 
+            from            teameta
+              natural join  teapkgs
+            where name like :pkg
+              and vsatisfies(ver, :ver)
+              and path like :path || '%'
                and field = ('require')
         }]
         set reqs [concat {*}$reqs]
