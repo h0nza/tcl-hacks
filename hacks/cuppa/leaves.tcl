@@ -85,6 +85,21 @@ proc db_scan {topdir args} {
     puts "Scanned $n packages, learned $m things"
 }
 
+# simplifies a set of version bounds into a single bound
+proc vsimplify {vers} {
+    set vers [lassign $vers first]
+    set first [split $first -]
+    lassign $first A B
+    foreach ver $vers {
+        lassign [split $ver -] a b
+        if {[package vcompare $A $a] < 0} { set A $a }
+        if {$B eq ""} {set B $b}
+        if {$b eq ""} continue
+        if {[package vcompare $b $B] < 0} { set B $b }
+    }
+    return $A-$B
+}
+#puts [vsimplify {8 8.4- 7.2-8.7.9 8.7.5-8.8}]; exit
 
 # parses a {Meta require} argument into a dictionary
 #
@@ -97,13 +112,14 @@ proc db_scan {topdir args} {
 #       archglob *
 #   }
 proc parse_req {name args} {
-    # ?ver ...?
+
+    # ?ver ...? ?-opt val ...?
     set i -1
     foreach v $args {
         if {[string match -* $v]} break
         incr i
     }
-    set versions [lrange $args 0 $i]
+    set vers [lrange $args 0 $i]
     set opts [lrange $args $i+1 end]
 
     # defaults:
@@ -111,54 +127,64 @@ proc parse_req {name args} {
     set o(-exact)   false
     set o(-is)      package
 
-    # ?-opt val ...?
     foreach {key val} $opts {
         if {$key ni {-archglob -is -platform -require  -version -exact}} {
             error "Invalid entity reference in \"$name\": $key"
         }
         if {$key eq "-require"} {
-            lappend versions $val
+            lappend vers $val
         } else {
             set o($key) $val
         }
     }
+
     # backward-compatibility:
     if {[info exists o(-version)]} {
-        if {$versions ne ""} {
+        if {$vers ne ""} {
             error "Cannot use -version with versions or -require"
         }
-        lappend versions $o(-version)
+        lappend vers $o(-version)
         unset o(-version)
     }
-    set versions [lmap ver $versions {join $ver -}]  ;# in vase of legacy list syntax
+
+    set vers [lmap v $vers {join $v -}]  ;# legacy list notation
+
     if {$o(-exact)} {
-        if {[string match {*[- ]*} $versions]} {
-            error "Can only use -exact with a single version! \"$name $versions\""
+        if {[string match {*[- ]*} $vers]} {
+            error "Can only use -exact with a single version! \"$name $vers\""
         }
-        set v0 [lindex $versions 0]
-        set v1 [split $v0 .]
+        set v [lindex $vers 0]
+        set v1 [split $v .]
+        # FIXME: behaviour on a.b versions may be dodgy
         lset v1 end [expr {1+[lindex $v1 end]}]
         set v1 [join $v1 .]
-        lset versions 0 $v0-$v1
+        lset vers 0 $v-$v1
     }
     unset o(-exact)
 
     # normalise versions into vcompare strings
-    set versions [lmap v0 $versions {
-        if {![string match *-* $v0]} {
+    set vers [lmap v0 $vers {
+        if {[string match *-* $v0]} {
+            string cat $v0
+        } else {    ;# synthesise upper bound
             set v1 [split $v0 .]
             set v1 [lindex $v1 0]
             incr v1
-            set v0 $v0-$v1
+            string cat $v0-$v1
         }
-        set v0
     }]
+
     if {[info exists o(-platform)]} {
         if {$o(-platform) ni {unix windows macosx}} {
             error "Invalid -platform $o(-platform) ($name)"
         }
     }
-    if {$versions ne ""} {set o(-versions) $versions}
+
+    if {$vers ne ""} {
+        set o(-versions) [vsimplify $vers]
+    }
+
+    # result:
     dict map {k v} [array get o] {
         set k [string trimleft $k -]
         set v
