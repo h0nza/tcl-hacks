@@ -29,7 +29,7 @@ namespace eval db {
     }
 
     proc exists {table} {
-        db exists {select 1 from sqlite_master where type = 'table' and name = :pattern}
+        db exists {select 1 from sqlite_master where type = 'table' and name = :table}
     }
 
     proc running {} {

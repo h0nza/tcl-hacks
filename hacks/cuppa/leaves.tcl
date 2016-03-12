@@ -280,12 +280,11 @@ namespace eval leaves {
     }
 
     proc find {args} {
-        set where [dict merge {
+        lib::dictargs args {
             pkg     %
             ver     0-
             path    %
-        } $args]
-        dict with where {}
+        }
         db eval {
             select path
             from teapkgs
@@ -296,12 +295,11 @@ namespace eval leaves {
     }
 
     proc deps {args} {
-        set where [dict merge {
+        lib::dictargs args {
             pkg     %
             ver     0-
             path    %
-        } $args]
-        dict with where {}
+        }
         set reqs [db eval { 
             select value as reqs 
             from            teameta

@@ -164,11 +164,10 @@ namespace eval cuppa {
     proc pkg_select {fields where} {
         variable pkgquery
         set where [uplevel 1 {dict create} $where]
-        set where [dict merge {
+        lib::dictargs where {
             name % arch % os % cpu %
             ver 0-
-        } $where]
-        dict with where {}
+        }
         db eval [string map [list * [join $fields ,]] $pkgquery]
     }
 
@@ -222,8 +221,11 @@ namespace eval cuppa {
 
     proc pkg_install {dir pkg args} {
         lassign [platform] os cpu
-        set ver 0-
-        dict with args {}
+        lib::dictargs args {
+            os  $os
+            cpu $cpu
+            ver 0-
+        }
         if {$os eq "tcl"} {
             set cpu %
         }
