@@ -24,16 +24,10 @@ namespace eval cuppa {
         powerpc     ppc
     }
 
-    proc {package vsatisfies} args {
-        set r [package vsatisfies {*}$args]
-        if {$r} {puts vsat($r):$args?}
-        return $r
-    }
-
     proc db_init {{filename ""}} {
         sqlite3 db $filename
         db collate  vcompare    {package vcompare}
-        db function vsatisfies  {{package vsatisfies}}
+        db function vsatisfies  {package vsatisfies}
         db_setup
     }
 
@@ -201,12 +195,6 @@ namespace eval cuppa {
         tailcall try [string map $map $script]
     }
 
-    proc find_pkg {name os cpu args} {
-        variable pkgquery
-        tailcall db eval $pkgquery {*}$args
-        ;#{} row {puts >>$row(*)} ;#{*}$args
-    }
-
     proc pkg_urls {name {os %} {cpu %}} {
         init_maps
         pkg_select {uri} {name $name os $os cpu $cpu}
@@ -225,6 +213,19 @@ namespace eval cuppa {
         puts "Wrote $path"
     }
 
+    proc path(dl) {dir name ver} {
+        set name [string trimleft $name ::]
+        file join $dir [string map {:: _ _ __} "$name-$ver.zip"]
+    }
+    proc path(tm) {dir name ver} {
+        set name [string trimleft $name ::]
+        file join $dir [string map {:: /} "$name-$ver.tm"]
+    }
+    proc path(dir) {dir name ver} {
+        set name [string trimleft $name ::]
+        file join $dir [string map {:: _ _ __} "$name-$ver"]
+    }
+
     proc pkg_install {dir pkg args} {
         lassign [platform] os cpu
         set ver 0-
@@ -233,7 +234,7 @@ namespace eval cuppa {
             set cpu %
         }
         pkg_foreach {name ver uri} {name $pkg ver $ver os $os cpu $cpu} {
-            set path [file join $dir "$name-$ver.tm"]
+            set path [path(dl) $dir $name $ver]
             puts "Trying $uri -> $path"
             try {
                 download $path $uri
@@ -253,6 +254,9 @@ namespace eval cuppa {
         try {
             set vfsd [vfs::zip::Mount $path $path]
         } on error {} {
+            set dest [path(tm) $dir $name $ver]
+            file rename $path $dest
+            set path $dest
             puts "$path is a tcl module: finished!"
             return $path
         }
@@ -261,12 +265,13 @@ namespace eval cuppa {
             if {[file exists $dest]} {
                 error "Destination path exists: [list $dest]"
             }
-            file copy $path [file rootname $path]
+            set dest [path(dir) $dir $name $ver]
+            file copy $path $dest
         } finally {
             vfs::zip::Unmount $vfsd $path
         }
         file delete $path
-        set path [file rootname $path]
+        set path $dest
         puts "$path is a tcl package: finished"
         return $path
     }
