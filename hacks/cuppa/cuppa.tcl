@@ -142,7 +142,7 @@ namespace eval cuppa {
                          || '/file'     
                     ) as uri
                 from packages p
-                inner join servers s using (server)
+                natural join servers s
                 where name like :name
                   and vsatisfies(ver, :ver)
                   and (cpu like :cpu
