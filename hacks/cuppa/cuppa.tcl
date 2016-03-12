@@ -168,9 +168,8 @@ namespace eval cuppa {
             name % arch % os % cpu %
             ver 0-
         } $where]
-        dict with where {
-            db eval [string map [list * [join $fields ,]] $pkgquery]
-        }
+        dict with where {}
+        db eval [string map [list * [join $fields ,]] $pkgquery]
     }
 
     proc pkg_foreach {fields where body} {

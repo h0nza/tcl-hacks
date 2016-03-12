@@ -8,24 +8,24 @@ package require vfs::zip
 
 namespace eval leaves {
     db::setup {
-        db eval {drop table if exists teainfo; drop table if exists teameta}
         set exists [db onecolumn {
             select count(*) from sqlite_master
             where type = 'table' and name = 'teameta';
         }]
         if {$exists} {
-            puts "pkgmeta already exists"
+            puts "teameta already exists"
             return
         }
+        db eval {drop table if exists teapkgs; drop table if exists teameta}
         puts "create table pkgmeta"
         db eval {
-            create table teainfo (
+            create table teapkgs (
                 name text,
-                version text collate vcompare,
+                ver text collate vcompare,
                 platform text,
                 path text,
                 primary key (path),
-                -- index teainfo_i_nvp (name, version, platform),
+                -- index teapkgs_i_nvp (name, ver, platform),
                 unique (path)
             );
             create table teameta (
@@ -45,20 +45,22 @@ namespace eval leaves {
         set d [dict filter $args {*}$keys]
         dict with d {
             db eval {
-                insert into teainfo ( name,  version,  platform,  path)
-                             values (:name, :version, :platform, :path);
+                insert or replace 
+                    into teapkgs ( name,  ver,  platform,  path)
+                          values (:name, :version, :platform, :path);
             }
         }
         foreach {field value} $args {
             if {$field in $keys} continue
             db eval {
-                insert into teameta ( path,  field,  value)
-                             values (:path, :field, :value);
+                insert or replace
+                    into teameta ( path,  field,  value)
+                          values (:path, :field, :value);
             }
         }
     }
 
-    proc db_scan {topdir args} {
+    proc scan {topdir args} {
         foreach path [glob $topdir/*] {
             try {
                 parse_teapot $path
@@ -74,7 +76,7 @@ namespace eval leaves {
                 }
             }
         }
-        set n [db onecolumn {select count(1) from teainfo}]
+        set n [db onecolumn {select count(1) from teapkgs}]
         set m [db onecolumn {select count(1) from teameta}]
         puts "Scanned $n packages, learned $m things"
     }
@@ -271,21 +273,43 @@ namespace eval leaves {
         return ""   ;# failed to mount
     }
 
-    proc main {args} {
-        db::init
-        db_scan {*}$args
-        db eval {select path, field, value from teameta where field in ('require', 'recommend')} {
-            puts "-- $path: $field: $value"
-            foreach req $value {
-                puts  " + [parse_req {*}$req]"
+    proc find {args} {
+        set where [dict merge {
+            pkg     %
+            ver     0-
+            path    %
+        } $args]
+        dict with where {}
+        db eval {
+            select path
+            from teapkgs
+            where name like :pkg
+            and vsatisfies(ver, :ver)
+            and path like :path
+        }
+    }
+
+    proc deps {path} {
+        set reqs [db eval { 
+            select value as reqs from teameta 
+             where path = :path 
+               and field = ('require')
+        }]
+        set reqs [concat {*}$reqs]
+        return [lmap r $reqs {parse_req {*}$r}]
+    }
+
+    proc main {cmd args} {
+        db::init leaves.db
+        switch $cmd {
+            scan {puts [scan {*}$args]}
+            deps {puts [deps {*}$args]}
+            find {puts [find {*}$args]}
+            default {
+                throw {BAD SUBCOMMAND} "Invalid subcommand \"$cmd\" - expected one of {scan deps find}"
             }
         }
     }
-        #dict for {name desc} [parse_teapot {*}$argv] {
-        #    array set $name $desc
-        #    parray $name
-        #    puts ----
-        #}
 }
 
 ::leaves::main {*}$argv
