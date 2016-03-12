@@ -20,7 +20,7 @@ package require lib
 namespace eval log {
 
     variable to {stderr}
-    alias to set [namespace current]::chan
+    lib::alias to set [namespace current]::chan
 
     variable levels { error warn info debug }   ;# wtf is "notice" anyway?
     variable profiles { :: 1 }      ;# default (root ns) gets {error warn}
@@ -63,7 +63,8 @@ namespace eval log {
         set s  [expr {$elapsed / 1000}]
         set ms [expr {$elapsed % 1000}]
         set ms [format %03d $ms]
-        clock format $s -format "%H:%M:%S.$ms"
+        #string trimleft [clock format $s -gmt 1 -format "%H:%M:%S.$ms"] 0:
+        clock format $s -gmt 1 -format "%H:%M:%S.$ms"
     }
 
     variable copies {}
@@ -83,13 +84,13 @@ namespace eval log {
         set t [Getlevel [lib::upns]]
         if {$l > $t} return
         set args [lmap a $args {lib::updo 1 subst $a}]
-        set msg "[now]: $level: $args"
+        set msg "[runtime]: $level: $args"
         puts $to $msg
         dict for {copy name} $copies {
             try {
                 puts $copy $msg
             } on error {e o} {
-                puts $to "[now]: warn: closed $name due to $e"
+                puts $to "[runtime]: warn: closed $name due to $e"
                 close $copy
             }
         }

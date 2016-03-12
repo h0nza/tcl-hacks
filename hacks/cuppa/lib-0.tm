@@ -7,7 +7,9 @@ namespace eval lib {
                 && [file dirname [file normalize $::argv0/...]]
                 eq [file dirname [file normalize [lib::updo info script]/...]]}]
         if {$m} {
+            package require log 0   ;# fixme - circular dependency too!
             set ns [lib::upns]
+            log::warn "$ns - running on [platform::identify] ([platform::generic])"
             tailcall apply [list $arglist $body $ns] {*}$::argv
         }
     }
@@ -57,8 +59,8 @@ namespace eval lib {
 
     ;# lang-utils
     proc alias {alias cmd args} {
-        set alias   [upns $alias]
-        set cmd     [upns $cmd]
+        set alias   [upns 1 $alias]
+        set cmd     [upns 1 $cmd]
         interp alias    {} $alias   {} $cmd {*}$args
     }
 
