@@ -1,15 +1,33 @@
+# SYNOPSIS:
+#
+#  output control
+#
+#   log::to stderr
+#   log::copy chan ?name?
+#   loc::close chan
+#
+#  Levels set by namespace from {debug info warn error}
+#
+#   log::level ?level?
+#
+#  Messages are not substituted if level not exceeded - beware side effects
+#
+#   log::info {message $subst string}
+#
 ::tcl::tm::path add [pwd]
 package require lib
 
 namespace eval log {
 
-    variable levels { error warn info debug }   ;# wtf is "notice" anyway?
-    variable profiles {:: 1}        ;# default gets {error warn} but not {info debug}
+    variable to {stderr}
+    alias to set [namespace current]::chan
 
-    apply {{levels} {
-        set i -1
+    variable levels { error warn info debug }   ;# wtf is "notice" anyway?
+    variable profiles { :: 1 }      ;# default (root ns) gets {error warn}
+
+    apply {{levels {i -1}} {
         foreach l $levels {
-            lib::updo 1 lib::alias $l log [incr i]
+            lib::updo 1 lib::alias $l log [incr i] $l
         }
     }} $levels
 
@@ -18,7 +36,7 @@ namespace eval log {
         variable profiles
         set ns [lib::upns]
         if {$n eq ""} {
-            return [getlevel $ns]
+            return [Getlevel $ns]
         } elseif {$n in {0 1 2 3}} {
         } elseif {-1 != [set i [lsearch -exact $levels $n]]} {
             set n $i
@@ -29,7 +47,7 @@ namespace eval log {
         return $n
     }
 
-    proc getlevel {ns} {
+    proc Getlevel {ns} {
         variable profiles
         while {![dict exists $profiles $ns]} {
             set ns [namespace parent $ns]
@@ -48,32 +66,33 @@ namespace eval log {
         clock format $s -format "%H:%M:%S.$ms"
     }
 
-    variable chans {}
-
+    variable copies {}
     proc copy {chan {name ""}} {
         if {$name eq ""} {set name $chan}
-        variable chans
-        dict set chans $chan $name
+        variable copies
+        dict set copies $chan $name
     }
     proc close {chan} {
-        variable chans
-        dict unset chans $chan
+        variable copies
+        dict unset copies $chan
     }
 
-    proc log {l args} {
-        variable levels
-        set level [getlevel [lib::upns]]
-        if {$l > $level} return
+    proc log {l level args} {
+        variable to
+        variable copies
+        set t [Getlevel [lib::upns]]
+        if {$l > $t} return
         set args [lmap a $args {lib::updo 1 subst $a}]
-        set msg "[now]: [lindex $levels $l]: $args"
-        puts $msg
-        dict for {chan name} $chans {
+        set msg "[now]: $level: $args"
+        puts $to $msg
+        dict for {copy name} $copies {
             try {
-                puts $chan $msg
+                puts $copy $msg
             } on error {e o} {
-                puts "[now]: warn: closed $name due to $e"
-                close $chan
+                puts $to "[now]: warn: closed $name due to $e"
+                close $copy
             }
         }
     }
+
 }
