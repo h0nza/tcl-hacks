@@ -25,6 +25,23 @@ namespace eval db {
         }] ,
     }
 
+    # declare an sql-backed procedure
+    proc qproc {name dictargs sql} {
+        set name [upns 1 $name]
+        set args {fields where args}
+
+        dict set map @SQL   [list $sql]
+        dict set map @DARGS [list $dictargs]
+
+        set body [string map $map {
+            set fields [db::fargs $fields]
+            set where [lib::updo lib::lsub $where]
+            lib::dictargs where @DARGS
+            lib::dictable [db eval [string map [list * [db::fargs $fields]] @SQL] {*}$args]
+        }
+        proc $name $args $body
+    }
+
     proc init {{filename ""}} {
         if {[running]} {
             puts "already running"
