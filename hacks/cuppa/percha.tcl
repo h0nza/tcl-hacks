@@ -1,6 +1,6 @@
 package require tdom
 
-set fd [open gutter/packages.xml r]
+set fd [open ref/packages.xml r]
 fconfigure $fd -encoding utf-8
 set data [read $fd]
 set dom [dom parse $data]
