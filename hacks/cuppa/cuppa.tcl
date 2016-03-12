@@ -2,6 +2,8 @@ proc putl args {puts $args}
 package require sqlite3
 package require geturl
 package require vfs::zip
+::tcl::tm::path add [pwd]
+package require db
 
 package require platform
 
@@ -24,14 +26,8 @@ namespace eval cuppa {
         powerpc     ppc
     }
 
-    proc db_init {{filename ""}} {
-        sqlite3 db $filename
-        db collate  vcompare    {package vcompare}
-        db function vsatisfies  {package vsatisfies}
-        db_setup
-    }
 
-    proc db_setup {} {
+    db::setup {
         set exists [db onecolumn {
             select count(*) from sqlite_master 
             where type = 'table' and name = 'servers';
@@ -67,14 +63,6 @@ namespace eval cuppa {
             create table map_cpu ( teapot text, local text );
         }
         init_maps
-    }
-
-    proc db_stat {} {
-        db eval {select name from sqlite_master where type = 'table'} {
-            db eval "select count(1) count from \"$name\"" {
-                puts "$name: $count records"
-            }
-        }
     }
 
     proc init_maps {} {
@@ -196,7 +184,7 @@ namespace eval cuppa {
     }
 
     proc pkg_urls {name {os %} {cpu %}} {
-        init_maps
+        #init_maps
         pkg_select {uri} {name $name os $os cpu $cpu}
     }
 
@@ -278,10 +266,10 @@ namespace eval cuppa {
 
     proc main {pkg args} {
         puts "Running on [platform::identify] ([platform::generic])"
-        db_init cuppa.db
+        db::init cuppa.db
         init_maps
         update_cache
-        db_stat
+        db::stat
         #puts [join [pkg_urls $pkg {*}[platform]] \n]
         #puts :$args:
         #puts [join [pkg_urls $pkg {*}$args] \n]
