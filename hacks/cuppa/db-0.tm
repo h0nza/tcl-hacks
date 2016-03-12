@@ -16,6 +16,10 @@ namespace eval db {
     }
 
     proc init {{filename ""}} {
+        if {[running]} {
+            puts "already running"
+            return
+        }
         sqlite3 [namespace current]::db $filename
         db collate  vcompare    {package vcompare}
         db function vsatisfies  {package vsatisfies}

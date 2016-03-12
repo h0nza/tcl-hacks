@@ -55,5 +55,30 @@ namespace eval lib {
         tailcall dict with $_args {}
     }
 
+    proc alias {alias cmd args} {
+        set ns [uplevel 1 {namespace current}]
+        set ns [string trimright $ns :]
+        if {![string match ::* $alias]} {
+            set alias ${ns}::${alias}
+        }
+        if {![string match ::* $cmd]} {
+            set cmd ${ns}::${cmd}
+        }
+        interp alias {} $alias {} $cmd {*}$args
+    }
+
+    proc upns {{lvl 1} args} {
+        if {$args eq ""} {
+            tailcall uplevel $lvl {namespace current}
+        } else {
+            set ns [uplevel [expr {$lvl+1}] {namespace current}]
+            set ns [string trimleft $ns ::]
+            set args [lassign $cmd args]
+            list ${ns}::$cmd {*}$args
+        }
+    }
+    proc updo {{lvl 1} args} {
+        tailcall uplevel 1 $args
+    }
 }
 
