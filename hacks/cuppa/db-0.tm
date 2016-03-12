@@ -32,11 +32,15 @@ namespace eval db {
     }
 
     # declare an sql-backed procedure
-    proc qproc {name dictargs sql} {
+    # a qproc takes arguments: fields where ??varName? script?
+    #  - fields is a list of names to select, or name:alias to project [sarg]/[farg]
+    #  - where is a [lib::subl] dict of parameters to the query
+    # additional args are like the ??row? script? args to sqlite
+    proc qproc {name defaults sqlquery} {
         set name [lib::upns 1 $name]
 
-        dict set map @SQL   [list $sql]
-        dict set map @DARGS [list $dictargs]
+        dict set map @SQL   [list $sqlquery]
+        dict set map @DEF   [list $defaults]
 
         set args {fields where args}
         set body [string map $map {
@@ -44,7 +48,7 @@ namespace eval db {
             set _VARS   [db::vargs $fields]
             set _SQL    [string map [list * $_FIELDS] @SQL]
             set _ARGS   [lib::updo lib::lsub $where]
-            lib::dictargs _ARGS @DARGS
+            lib::dictargs _ARGS @DEF
             lib::dictable $_VARS [db eval $_SQL {*}$args]
         }]
         proc $name $args $body

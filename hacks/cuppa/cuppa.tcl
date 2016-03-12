@@ -261,6 +261,7 @@ namespace eval cuppa {
 
     namespace ensemble create -map {
         update  update_cache
+        check   check_exists
         find    find
         install install
     }
