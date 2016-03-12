@@ -2,17 +2,17 @@ namespace eval lib {
 
     proc putl args {puts $args}
 
-    proc main {arglist body} {
-        set m [uplevel 1 {expr {[info exists ::argv0]
+    proc main {arglist body} {      ;# lib::main {args} {puts "Invoked directly, with $args"}
+        set m [expr {[info exists ::argv0]
                 && [file dirname [file normalize $::argv0/...]]
-                eq [file dirname [file normalize [info script]/...]]}}]
+                eq [file dirname [file normalize [lib::updo info script]/...]]}]
         if {$m} {
-            set ns [uplevel 1 {namespace current}]
+            set ns [lib::upns]
             tailcall apply [list $arglist $body $ns] {*}$::argv
         }
     }
     
-    proc lsub script {    ;# [sl] from the wiki
+    proc lsub script {              ;# [sl] from the wiki
         set res {}
         set parts {}
         foreach part [split $script \n] {
@@ -38,7 +38,7 @@ namespace eval lib {
         return $res
     }
 
-    proc my {cmd args} {
+    proc my {cmd args} {            ;# create cmdprefixes with local commands
         list [namespace current]::$cmd {*}$args
     }
 
@@ -55,30 +55,28 @@ namespace eval lib {
         tailcall dict with $_args {}
     }
 
+    ;# lang-utils
     proc alias {alias cmd args} {
-        set ns [uplevel 1 {namespace current}]
-        set ns [string trimright $ns :]
-        if {![string match ::* $alias]} {
-            set alias ${ns}::${alias}
-        }
-        if {![string match ::* $cmd]} {
-            set cmd ${ns}::${cmd}
-        }
-        interp alias {} $alias {} $cmd {*}$args
+        set alias   [upns $alias]
+        set cmd     [upns $cmd]
+        interp alias    {} $alias   {} $cmd {*}$args
     }
 
-    proc upns {{lvl 1} args} {
+    proc upns {{lvl 1} args} {  ;# doubles as resolve-cmdname-in-caller
         if {$args eq ""} {
             tailcall uplevel $lvl {namespace current}
         } else {
+            set cargs [lassign $args cmd]
+            if {[string match :* $cmd]} {
+                return $args
+            }
             set ns [uplevel [expr {$lvl+1}] {namespace current}]
-            set ns [string trimleft $ns ::]
-            set args [lassign $cmd args]
-            list ${ns}::$cmd {*}$args
+            set ns [string trimright $ns :]
+            return [list ${ns}::$cmd {*}$cargs]
         }
     }
     proc updo {{lvl 1} args} {
-        tailcall uplevel 1 $args
+        tailcall uplevel $lvl $args
     }
-}
 
+}
