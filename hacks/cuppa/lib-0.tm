@@ -80,10 +80,10 @@ namespace eval lib {
     }
 
     proc dictable {names list} {
-        foreach name $names {
+        set args [join [lmap name $names {
             set name [list $name]
-            lappend args [subst -noc {$name [set $name]}]
-        }
+            subst -noc {$name [set $name]}
+        }] " "]
         lmap {*}$names $list "dict create $args"
     }
 

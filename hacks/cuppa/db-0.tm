@@ -17,28 +17,36 @@ namespace eval db {
 
     # decodes a list like {a b:bee c}
     # into "a as a, b as bee, c as c"
-    proc fargs {fields} {
+    proc sargs {fields} {
         join [lmap f $fields {
             lassign [split $f :] name alias
-            if {$alias eq ""} {set alias $name}
-            string cat "[qn $name] as [qn $alias]"
+            if {$alias eq ""} {
+                string cat "[qn $name]"
+            } else {
+                string cat "[qn $name] as [qn $alias]"
+            }
         }] ,
+    }
+    proc vargs {fields} {
+        lmap f $fields {regsub {^.*:} $f {}}
     }
 
     # declare an sql-backed procedure
     proc qproc {name dictargs sql} {
-        set name [upns 1 $name]
-        set args {fields where args}
+        set name [lib::upns 1 $name]
 
         dict set map @SQL   [list $sql]
         dict set map @DARGS [list $dictargs]
 
+        set args {fields where args}
         set body [string map $map {
-            set fields [db::fargs $fields]
-            set where [lib::updo lib::lsub $where]
-            lib::dictargs where @DARGS
-            lib::dictable [db eval [string map [list * [db::fargs $fields]] @SQL] {*}$args]
-        }
+            set _FIELDS [db::sargs $fields]
+            set _VARS   [db::vargs $fields]
+            set _SQL    [string map [list * $_FIELDS] @SQL]
+            set _ARGS   [lib::updo lib::lsub $where]
+            lib::dictargs _ARGS @DARGS
+            lib::dictable $_VARS [db eval $_SQL {*}$args]
+        }]
         proc $name $args $body
     }
 
