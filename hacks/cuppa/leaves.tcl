@@ -1,34 +1,41 @@
 # leaves reads teapot descriptions
 #
+# SYNOPSIS:
+#
+#  $ leaves.tcl scan lib/
+#  $ leaves.tcl find path lib/%
+#  $ leaves.tcl deps lib/snit-2.3.2
+#
 ::tcl::tm::path add [pwd]
 package require db
+package require lib
 package require vfs::mk4
 package require vfs::tar
 package require vfs::zip
 
 namespace eval leaves {
-    db::setup {
-        set exists [db onecolumn {
-            select count(*) from sqlite_master
-            where type = 'table' and name = 'teameta';
-        }]
-        if {$exists} {
-            puts "teameta already exists"
-            return
-        }
-        db eval {drop table if exists teapkgs; drop table if exists teameta}
-        puts "create table pkgmeta"
+    db::reset {
         db eval {
-            create table teapkgs (
+            drop table if exists teapkgs;
+            drop table if exists teameta;
+        }
+    }
+    db::setup {
+        try {
+            db exists {select 1 from teapkgs}
+        } on ok {} {return}
+        puts "Setting up leaves"
+        db eval {
+            create table if not exists teapkgs (
                 name text,
                 ver text collate vcompare,
-                platform text,
+                arch text,
                 path text,
                 primary key (path),
-                -- index teapkgs_i_nvp (name, ver, platform),
+                -- index teapkgs_i_nvp (name, ver, arch),
                 unique (path)
             );
-            create table teameta (
+            create table if not exists teameta (
                 path text,
                 field text,
                 value text,
@@ -46,7 +53,7 @@ namespace eval leaves {
         dict with d {
             db eval {
                 insert or replace 
-                    into teapkgs ( name,  ver,  platform,  path)
+                    into teapkgs ( name,  ver,      arch,      path)
                           values (:name, :version, :platform, :path);
             }
         }
@@ -285,7 +292,7 @@ namespace eval leaves {
             from teapkgs
             where name like :pkg
             and vsatisfies(ver, :ver)
-            and path like :path
+            and path like :path || '%'
         }
     }
 
@@ -299,17 +306,10 @@ namespace eval leaves {
         return [lmap r $reqs {parse_req {*}$r}]
     }
 
-    proc main {cmd args} {
-        db::init leaves.db
-        switch $cmd {
-            scan {puts [scan {*}$args]}
-            deps {puts [deps {*}$args]}
-            find {puts [find {*}$args]}
-            default {
-                throw {BAD SUBCOMMAND} "Invalid subcommand \"$cmd\" - expected one of {scan deps find}"
-            }
-        }
-    }
+    namespace ensemble create -subcommands {scan deps find}
 }
 
-::leaves::main {*}$argv
+lib::main args {
+    db::init leaves.db
+    puts [leaves {*}$args]
+}

@@ -9,7 +9,7 @@ namespace eval db {
         sqlite3 [namespace current]::db $filename
         db collate  vcompare    {package vcompare}
         db function vsatisfies  {package vsatisfies}
-        setup
+        Setup
     }
 
     proc stat {} {
@@ -29,22 +29,27 @@ namespace eval db {
     }
 
     variable setup_scripts {}
-    proc setup args {
+    proc Setup {} {
         variable setup_scripts
-        if {$args eq ""} {  ;# run setup
-            foreach {namespace script} $setup_scripts {
-                apply [list {} $script $namespace]
-            }
-        } elseif {[llength $args] > 1} {
-            error {TCL WRONGARGS} "Expected ::db::setup ?script?"
+        foreach {namespace script} $setup_scripts {
+            puts "db setup $namespace"
+            apply [list {} $script $namespace]
         }
+    }
+    proc setup {script} {
+        variable setup_scripts
         set ns [uplevel 1 {namespace current}]
+        dict set setup_scripts $ns $script              ;# register a setup script
         if {[running]} {
-            apply [list {} $script $ns]
-        } else {    ;# register a setup script
-            dict set setup_scripts $ns [lindex $args 0]
-            tailcall namespace import [namespace which db]
+            apply [list {} $script $ns]                 ;# apply immediately
         }
+        tailcall namespace import [namespace which db]  ;# make db accessible
+    }
+
+    proc reset script {
+        variable reset_scripts
+        set ns [uplevel 1 {namespace current}]
+        dict set reset_scripts $ns $script
     }
 
 }

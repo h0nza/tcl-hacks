@@ -3,7 +3,16 @@ package require db
 
 namespace eval billy {
 
+    db::reset {
+        db eval {
+            drop if exists table packages;
+        }
+    }
     db::setup {
+        try {
+            db exists {select 1 from packages}
+        } on ok {} {return}
+        puts "Setting up billy"
         db eval {
             create table if not exists packages (
                 name text,

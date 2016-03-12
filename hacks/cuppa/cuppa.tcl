@@ -1,9 +1,9 @@
-proc putl args {puts $args}
 package require sqlite3
 package require geturl
 package require vfs::zip
 ::tcl::tm::path add [pwd]
 package require db
+package require lib
 
 package require platform
 
@@ -27,30 +27,32 @@ namespace eval cuppa {
     }
 
 
-    db::setup {
-        set exists [db onecolumn {
-            select count(*) from sqlite_master 
-            where type = 'table' and name = 'servers';
-        }]
-        if {$exists} {
-            puts "Using existing db"
-            return
-        }
-
-        puts "Initialising new db"
+    db::reset {
         db eval {
-            create table servers (
+            drop table if exists servers;
+            drop table if exists packages;
+            drop table if exists map_os;
+            drop table if exists map_cpu;
+        }
+    }
+    db::setup {
+        try {
+            db exists {select 1 from servers}
+        } on ok {} {return}
+        puts "Setting up cuppa"
+        db eval {
+            create table if not exists servers (
                 server text not null, uri text not null,
                 last_checked integer default 0,
                 primary key (server),
                 unique (uri)
             );
-            insert into servers (server, uri) values (
-                'activestate', 'http://teapot.activestate.com'
-            ), (
-                'rkeene',   'http://teapot.rkeene.org'
-            );
-            create table packages (
+            insert or replace
+                into servers    (server,    uri)
+                values  ( 'activestate',    'http://teapot.activestate.com'
+                ),      ( 'rkeene',         'http://teapot.rkeene.org'
+                );
+            create table if not exists packages (
                 name text,
                 ver text collate vcompare,
                 arch text, os text, cpu text,
@@ -59,8 +61,8 @@ namespace eval cuppa {
                 foreign key (server) references servers (server)
             );
 
-            create table map_os ( teapot text, local text );
-            create table map_cpu ( teapot text, local text );
+            create table if not exists map_os ( teapot text, local text );
+            create table if not exists map_cpu ( teapot text, local text );
         }
         init_maps
     }
@@ -200,15 +202,22 @@ namespace eval cuppa {
         puts "Wrote $path"
     }
 
-    proc path(dl) {dir name ver} {
+    proc check_exists {dir name ver} {
+        foreach cmd [info commands [namespace current]::path:*] {
+            set path [$cmd $dir $name $ver]
+            if {[file exists $path]} {return $path}
+        }
+    }
+
+    proc path:dl {dir name ver} {
         set name [string trimleft $name ::]
         file join $dir [string map {:: _ _ __} "$name-$ver.zip"]
     }
-    proc path(tm) {dir name ver} {
+    proc path:tm {dir name ver} {
         set name [string trimleft $name ::]
         file join $dir [string map {:: /} "$name-$ver.tm"]
     }
-    proc path(dir) {dir name ver} {
+    proc path:dir {dir name ver} {
         set name [string trimleft $name ::]
         file join $dir [string map {:: _ _ __} "$name-$ver"]
     }
@@ -221,7 +230,11 @@ namespace eval cuppa {
             set cpu %
         }
         pkg_foreach {name ver uri} {name $pkg ver $ver os $os cpu $cpu} {
-            set path [path(dl) $dir $name $ver]
+            set loc [check_exists $dir $name $ver]
+            if {$loc ne ""} {
+                throw [list CUPPA EXISTS $loc] "Package (might?) exist at \"$loc\""
+            }
+            set path [path:dl $dir $name $ver]
             puts "Trying $uri -> $path"
             try {
                 download $path $uri
@@ -241,7 +254,7 @@ namespace eval cuppa {
         try {
             set vfsd [vfs::zip::Mount $path $path]
         } on error {} {
-            set dest [path(tm) $dir $name $ver]
+            set dest [path:tm $dir $name $ver]
             file rename $path $dest
             set path $dest
             puts "$path is a tcl module: finished!"
@@ -252,7 +265,7 @@ namespace eval cuppa {
             if {[file exists $dest]} {
                 error "Destination path exists: [list $dest]"
             }
-            set dest [path(dir) $dir $name $ver]
+            set dest [path:dir $dir $name $ver]
             file copy $path $dest
         } finally {
             vfs::zip::Unmount $vfsd $path
@@ -263,7 +276,13 @@ namespace eval cuppa {
         return $path
     }
 
-    proc main {pkg args} {
+    namespace ensemble create -map {
+        update  update_cache
+        find    pkg_urls
+        install pkg_install
+    }
+
+    proc test {pkg args} {
         puts "Running on [platform::identify] ([platform::generic])"
         db::init cuppa.db
         init_maps
@@ -278,4 +297,8 @@ namespace eval cuppa {
 }
 
 
-::cuppa::main {*}$argv
+#::cuppa::main {*}$argv
+lib::main args {
+    db::init cuppa.db
+    puts [cuppa {*}$args]
+}
