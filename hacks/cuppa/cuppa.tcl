@@ -8,6 +8,7 @@ package require lib
 package require platform
 
 namespace eval cuppa {
+
     variable map_os {
         tcl         %
         linux-%     linux
@@ -18,14 +19,13 @@ namespace eval cuppa {
         macosx%     darwin
     }
     variable map_cpu {
-        ix86        {x86 intel i?86 i86pc}
+        ix86        {x86 intel i_86 i86pc}
         sparc       sun4%
         sparc64     {sun4u sun4v}
         universal   %
         %           ""
         powerpc     ppc
     }
-
 
     db::reset {
         db eval {
