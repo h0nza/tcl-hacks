@@ -44,7 +44,6 @@ namespace eval lib {
 
     proc dictargs {_args defaults} {
         upvar 1 $_args args
-        #set defaults [dict map {_ d} $defaults {uplevel 1 [list subst $d]}]
         set defaults [uplevel 1 [my lsub $defaults]]
         set bad [dict filter $args script {k _} {
             expr {![dict exists $defaults $k]}

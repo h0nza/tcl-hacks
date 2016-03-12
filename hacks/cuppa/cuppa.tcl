@@ -163,7 +163,7 @@ namespace eval cuppa {
 
     proc pkg_select {fields where} {
         variable pkgquery
-        set where [uplevel 1 {dict create} $where]
+        set where [uplevel 1 [lib::lsub $where]]
         lib::dictargs where {
             name % arch % os % cpu %
             ver 0-
