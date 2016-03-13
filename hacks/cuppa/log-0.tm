@@ -31,6 +31,15 @@ namespace eval log {
         }
     }} $levels
 
+    proc never {args} {
+        foreach level $args {
+            log::warn {suppressing $level}
+            catch {
+                lib::alias $level list
+            }
+        }
+    }
+
     proc level {{n ""}} {
         variable levels
         variable profiles
@@ -81,10 +90,19 @@ namespace eval log {
     proc log {l level args} {
         variable to
         variable copies
-        set t [Getlevel [lib::upns]]
+        set ns [lib::upns]
+        set t [Getlevel $ns]
         if {$l > $t} return
         set args [lmap a $args {lib::updo 1 subst $a}]
-        set msg "[runtime]: $level: $args"
+        if {[llength $args] == 1} {lassign $args args}
+        set context [lib::updo namespace which [lindex [::info level -1] 0]]
+        set lvl [dict get {
+            debug   "d   "
+            info    "in  "
+            warn    "wrn "
+            error   "ERR!"
+        } $level]
+        set msg "[runtime] $lvl $context | $args"
         puts $to $msg
         dict for {copy name} $copies {
             try {

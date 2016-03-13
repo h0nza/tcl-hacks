@@ -11,7 +11,8 @@ namespace eval lib {
         if {$m} {
             package require log 0   ;# fixme - circular dependency too!
             set ns [lib::upns]
-            log::warn "$ns - running on [platform::identify] ([platform::generic])"
+            set s [updo info script]
+            log::warn "$s - running on [platform::identify] ([platform::generic])"
             tailcall apply [list $arglist $body $ns] {*}$::argv
         }
     }
