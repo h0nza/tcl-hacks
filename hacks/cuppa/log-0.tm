@@ -23,7 +23,7 @@ namespace eval log {
     lib::alias to set [namespace current]::chan
 
     variable levels { error warn info debug }   ;# wtf is "notice" anyway?
-    variable profiles { :: 1 }      ;# default (root ns) gets {error warn}
+    variable profiles { :: 2 }      ;# default (root ns) gets {error warn}
 
     apply {{levels {i -1}} {
         foreach l $levels {

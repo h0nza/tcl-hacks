@@ -58,6 +58,9 @@ namespace eval leaves {
         }
         foreach {field value} $args {
             if {$field in $keys} continue
+            if {$field in {require recommend}} {
+                set value [parse_reqs $value]
+            }
             db eval {
                 insert or replace
                     into teameta ( path,  field,  value)
@@ -71,20 +74,21 @@ namespace eval leaves {
             try {
                 parse_teapot $path
             } on ok {teameta} {
-                puts "Found teapot.txt in $path"
+                log::info {Found teameta in $path}
                 foreach {key meta} $teameta {
-                    puts "Inserting metadata for $key"
+                    log::info { + inserting record for $key}
                     db_insert path $path {*}$args {*}$meta
                 }
             } on error {e o} {
                 if {[file isdirectory $path]} {
-                    db_scan $path {*}$args
+                    log::info {Recursing into $path}
+                    scan $path {*}$args
                 }
             }
         }
         set n [db onecolumn {select count(1) from teapkgs}]
         set m [db onecolumn {select count(1) from teameta}]
-        puts "Scanned $n packages, learned $m things"
+        log::info {Scanned $n packages, learned $m facts}
     }
 
     # simplifies a set of version bounds into a single bound
@@ -105,8 +109,9 @@ namespace eval leaves {
 
     # parses a {Meta require} argument into a dictionary
     #
-    # result always contains:   {pkg versions}
+    # result always contains:   {name version}
     #           may contain:    {is platform archglob}
+    proc parse_reqs {reqlist} { lmap r $reqlist { parse_req {*}$r } }
     proc parse_req {name args} {
 
         # ?ver ...? ?-opt val ...?
@@ -119,7 +124,7 @@ namespace eval leaves {
         set opts [lrange $args $i+1 end]
 
         # defaults:
-        set o(-pkg)     $name
+        set o(-name)    $name
         set o(-exact)   false
         set o(-is)      package
 
@@ -177,7 +182,7 @@ namespace eval leaves {
         }
 
         if {$vers ne ""} {
-            set o(-versions) [vsimplify $vers]
+            set o(-version) [vsimplify $vers]
         }
 
         if {$o(-is) eq "package"} {
@@ -191,6 +196,8 @@ namespace eval leaves {
         }
     }
 
+    # returns a dict which ALWAYS has   {name version}
+    #   and MAY have more               {platform require ...}
     proc parse_teapot {path} {
         set meta [get_meta $path]
         set meta [string trim $meta]
@@ -315,7 +322,7 @@ namespace eval leaves {
                 lassign $table rec
                 dict with rec {}
                 log::warn {Deps from: $path}
-                return [lmap r $reqs {parse_req {*}$r}]
+                return $reqs
             }
             default {
                 log::warn {Ambiguous match for $args}
