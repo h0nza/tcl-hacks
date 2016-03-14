@@ -89,7 +89,7 @@ namespace eval lib {
             set name [list $name]
             subst -noc {$name [set $name]}
         }] " "]
-        lmap {*}$names $list "dict create $args"
+        lmap $names $list "dict create $args"
     }
 
 }
