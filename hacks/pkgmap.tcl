@@ -72,6 +72,10 @@ if 1 {
         puts [llength $before]-[llength $after]
         puts $names
         foreach pkg $names {
+            if {$name in {console}} {
+                puts "Skipping blacklisted: $name"
+                continue
+            }
             try {
                 package require $pkg
             } on error {e o} {

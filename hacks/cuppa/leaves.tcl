@@ -51,7 +51,7 @@ namespace eval leaves {
         set d [dict filter $args {*}$keys]
         dict with d {
             db eval {
-                insert or replace 
+                insert or replace
                     into teapkgs ( name,  ver,      arch,      path)
                           values (:name, :version, :platform, :path);
             }
@@ -277,35 +277,53 @@ namespace eval leaves {
         return ""   ;# failed to mount
     }
 
-    db::qproc Find { pkg % ver 0- path % } {
+    db::qproc Find { 
+        pkg     %
+        ver     0-
+        path    %
+    } {
         select *
           from teapkgs
-         where 1
-           and name like :pkg
+         where name like :pkg
            and vsatisfies(ver, :ver)
            and path like :path || '%'
     }
-
     proc find args {
         Find {path} $args
     }
 
     db::qproc Deps {
-            pkg     %
-            ver     0-
-            path    %
+        pkg     %
+        ver     0-
+        path    %
     } {
-            select *
-            from teameta
-              natural join teapkgs
-            where name like :pkg
-              and vsatisfies(ver, :ver)
-              and path like :path || '%'
-              and field = ('require')
+        select *
+          from teameta
+          natural join teapkgs
+        where name like :pkg
+          and vsatisfies(ver, :ver)
+          and path like :path || '%'
+          and field = ('require')
     }
     proc deps {args} {
-        set reqs [leaves::Deps value $args]
-        set reqs [lmap r $reqs {parse_req {*}$r}]
+        set table [Deps {name arch path value:reqs} $args]
+        switch [llength $table] {
+            0 {
+                log::warn {No match for $args}
+            }
+            1 {
+                lassign $table rec
+                dict with rec {}
+                log::warn {Deps from: $path}
+                return [lmap r $reqs {parse_req {*}$r}]
+            }
+            default {
+                log::warn {Ambiguous match for $args}
+                foreach rec $table {
+                    log::warn { + Candidate:  $rec}
+                }
+            }
+        }
     }
 
     namespace ensemble create -subcommands {scan deps find}
