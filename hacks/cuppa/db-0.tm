@@ -1,4 +1,5 @@
 package require sqlite3
+package require log 0
 
 namespace eval db {
     namespace export *
@@ -56,9 +57,9 @@ namespace eval db {
 
     proc init {{filename ""}} {
         if {[running]} {
-            puts "already running"
             return
         }
+        log::info {$filename}
         sqlite3 [namespace current]::db $filename
         db collate  vcompare    {package vcompare}
         db function vsatisfies  {package vsatisfies}
@@ -93,15 +94,16 @@ namespace eval db {
     proc Setup {} {
         variable Setup_scripts
         foreach {namespace script} $Setup_scripts {
-            puts "db setup $namespace"
+            log::info {setup $namespace}
             apply [list {} $script $namespace]
         }
     }
     proc setup {script} {
-        variable setup_scripts
+        variable Setup_scripts
         set ns [uplevel 1 {namespace current}]
-        dict set setup_scripts $ns $script              ;# register a setup script
+        dict set Setup_scripts $ns $script              ;# register a setup script
         if {[running]} {
+            log::info {late setup $namespace}
             apply [list {} $script $ns]                 ;# apply immediately
         }
         tailcall namespace import [namespace which db]  ;# make db accessible

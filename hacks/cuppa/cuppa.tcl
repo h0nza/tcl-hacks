@@ -23,7 +23,7 @@ namespace eval cuppa {
         sparc       sun4%
         sparc64     {sun4u sun4v}
         universal   %
-        %           ""
+        ""          %
         powerpc     ppc
     }
 
@@ -37,24 +37,26 @@ namespace eval cuppa {
     }
     db::setup {
         if {[db::exists servers]} return
-        puts "Setting up cuppa"
+        log::info {setting up cuppa}
         db eval {
             create table if not exists servers (
                 server text not null, uri text not null,
                 last_checked integer default 0,
+                pri integer default 100,
                 primary key (server),
                 unique (uri)
             );
             insert or replace
-                into servers    (server,    uri)
-                values  ( 'activestate',    'http://teapot.activestate.com'
-                ),      ( 'rkeene',         'http://teapot.rkeene.org'
+                into servers (pri, server,    uri)
+                values  ( 1, 'activestate',  'http://teapot.activestate.com'
+                ),      ( 2, 'rkeene',       'http://teapot.rkeene.org'
                 );
             create table if not exists packages (
-                name text,
-                ver text collate vcompare,
-                arch text, os text, cpu text,
-                server text,
+                name    text,
+                ver     text collate vcompare,
+                arch    text, os text, cpu text,
+                server  text,
+                pkgurl  text,
                 primary key (name, ver, arch, os, cpu, server),
                 foreign key (server) references servers (server)
             );
@@ -94,38 +96,56 @@ namespace eval cuppa {
         }
     }
 
-    proc server_uri {server path} {
-        set base [db onecolumn {select uri from servers where server = :server}]
-        string cat [string trimright $base /] / [string trimleft $path /]
+    proc join_url {args} {
+        set url [join $args /\0/]
+        regsub -all {/*\0/*} $url / url
+        return $url
+    }
+
+    proc server_uri {server args} {
+        db eval {select uri from servers where server = :server} {
+            return [join_uri $uri {*}$args]
+        }
     }
     proc update_cache {{limit 604800}} {
         set now [clock seconds]
         set last [expr {[clock seconds]-$limit}]
-        db eval {select server, uri from servers where last_checked < :last} {
-            cache_server $server
+        log::info {updating servers since $last}
+        db eval {select server, uri, last_checked from servers where last_checked < :last} {
+            set when [clock format $last_checked]
+            log::info {Updating cache for $server (last: $when)}
+            cache_server $server $uri
         }
-        puts "Caches updated"
     }
 
-    proc cache_server {server} {
-        puts "Updating cache for $server"
-        set data [geturl [server_uri $server /package/list]]
+    proc cache_server {server uri} {
+        set data [geturl [join_url $uri /package/list]]
         set now [clock seconds]
-        db eval {delete from packages where server = :server}
-        regexp {\[\[TPM\[\[(.*)\]\]MPT\]\]} $data -> data
+        if { ![regexp {\[\[TPM\[\[(.*)\]\]MPT\]\]} $data -> data]} {
+            throw {CUPPA BADTPM} "No TPM data at $uri"
+        }
+        if {  [catch {llength $data}] } {
+            throw {CUPPA BADTPM} "TPM data not a list at $uri"
+        }
+        db eval {
+            delete from packages where server = :server
+        }
         foreach record $data {
             lassign $record type pkg ver arch
             if {$type ne "package"} continue
-            if {$arch eq "source"} continue
-            if {$arch eq "tcl"} {
-                lassign {% %} os cpu
-            } elseif {![regexp {^(.*)-([^-]*)} $arch -> os cpu]} {
-                error "Can't match arch [list $arch]"
+            if {$arch eq "source"}  continue
+            regexp {^(.*)(?:-(.*))?$} $arch -> os cpu
+            try {
+                package vsatisfies $ver 0-
+            } on error {e o} {
+                log::warn {Bad version: ignoring! $pkg $ver @ $server}
+                continue
             }
+            set pkgurl [join_url $uri package name $pkg ver $ver arch $arch file]
             db eval {
                 insert or replace
-                into packages (name, ver, arch, os, cpu, server)
-                values (:pkg, :ver, :arch, :os, :cpu, :server);
+                into packages (name, ver, arch, os, cpu, server, pkgurl)
+                values (:pkg, :ver, :arch, :os, :cpu, :server, :pkgurl);
             }
         }
         db eval {
@@ -134,38 +154,28 @@ namespace eval cuppa {
     }
 
     db::qproc Find {
-        name %  ver 0-  arch %  os %  cpu % 
+        name %  ver 0-  arch %  os %  cpu %
     } {
             with t as (
-                select distinct name, ver, arch, os, cpu, server, 
-                    (uri || '/package/name/' || name 
-                         || '/ver/'          || ver 
-                         || '/arch/'         || arch 
-                         || '/file'     
-                    ) as uri
-                from packages p
-                natural join servers s
+                select distinct name, ver, arch, os, cpu, server, pkgurl, pri
+                from packages
+                 inner join servers using (server)
+                   -- inner join map_cpu on ( cpu like teapot and :cpu like local )
                 where name like :name
                   and vsatisfies(ver, :ver)
                   and (cpu like :cpu
-                   or exists (
-                    select * from map_cpu
-                    where (p.cpu like map_cpu.teapot or map_cpu.teapot like p.cpu)
-                      and (:cpu like map_cpu.local or map_cpu.local like :cpu)
-                  ))
+                    or exists (select * from map_cpu where cpu like teapot and :cpu like local))
                   and (os like :os
-                   or exists (
-                    select * from map_os
-                    where (p.os like map_os.teapot or map_os.teapot like p.os)
-                      and (:os like map_os.local or map_os.local like :os)
-                  ))
-            ) 
-            select * from t where ver = (select max(ver) from t)
+                    or exists (select * from map_os  where os  like teapot and :os  like local))
+            )
+            select * from t
+            -- where ver = (select max(ver) from t)
+            order by ver desc, pri;
     }
 
     proc find {args} {
-        Find {uri} $args {
-            puts "Found at $uri"
+        Find {pkgurl} $args {
+            puts "Found at $pkgurl"
         }
     }
 
