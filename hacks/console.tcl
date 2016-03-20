@@ -166,7 +166,10 @@ oo::class create WrapText {
     forward del hull delete
     forward rep hull replace
     method insert args {
-        if {$Options(-readonly)} return
+        if {$Options(-readonly)} {
+            event generate $hull <<ReadOnly>> -data [list insert {*}$args]
+            return
+        }
         try {
             $hull insert {*}$args
         } finally {
@@ -174,7 +177,10 @@ oo::class create WrapText {
         }
     }
     method replace args {
-        if {$Options(-readonly)} return
+        if {$Options(-readonly)} {
+            event generate $hull <<ReadOnly>> -data [list replace {*}$args]
+            return
+        }
         try {
             $hull replace {*}$args
         } finally {
@@ -182,7 +188,10 @@ oo::class create WrapText {
         }
     }
     method delete args {
-        if {$Options(-readonly)} return
+        if {$Options(-readonly)} {
+            event generate $hull <<ReadOnly>> -data [list delete {*}$args]
+            return
+        }
         try {
             $hull delete {*}$args
         } finally {
@@ -223,8 +232,9 @@ oo::class create Console {
 
         frame $win.top -bg red
         frame $win.bottom -bg blue
-        wraptext $win.input   -height 1  -width 80 -wrap char  -maxheight 5
         wraptext $win.output  -height 24 -width 80 -wrap char  -readonly 1
+        wraptext $win.input   -height 1  -width 80 -wrap char  -maxheight 5 -undo 1
+        bindtags $win.output [string map {Text ConsoleOutput.Text} [bindtags $win.output]]
 
         History create history {{parray ::tcl_platform}}
 
@@ -235,8 +245,8 @@ oo::class create Console {
         grid columnconfigure $win $win.top -weight 1
         grid rowconfigure $win $win.top -weight 1
         grid propagate $win 1
-        pack $win.input  -in $win.bottom -expand yes -fill both
         pack $win.output -in $win.top    -expand yes -fill both
+        pack $win.input  -in $win.bottom -expand yes -fill both
 
         my SetupTags
         my SetupBinds
@@ -245,25 +255,28 @@ oo::class create Console {
     }
 
     method SetupTags {} {
+        set textopts {-background black -foreground white
+                      -insertbackground blue
+                      -border 0
+                      -highlightbackground darkgray -highlightcolor lightgray}
         array set tagconfig {
-            * {-background black -foreground white}
-            prompt {-foreground green}
-            input  {-foreground darkgray}
-            stdout {-foreground lightgray}
-            stderr {-foreground red}
-            result {}
-            error  {-foreground red -underline yes}
+            prompt  {-foreground green}
+            input   {-foreground darkgray}
+            stdout  {-foreground lightgray}
+            stderr  {-foreground red}
+            sel     {-background darkgreen}
+            result  {}
+            error   {-foreground red -underline yes}
         }
-        set textopts {-border 0 -insertbackground blue -highlightbackground darkgray -highlightcolor lightgray}
-        set defaults $tagconfig(*)
-        unset tagconfig(*)
-        $win.output configure
-        $win.output configure {*}$defaults {*}$textopts
-        $win.input configure {*}$defaults {*}$textopts
+
+        $win.output configure {*}$textopts
+        $win.input configure  {*}$textopts
+
         dict for {tag opts} [array get tagconfig] {
-            $win.output tag configure $tag {*}[dict merge $defaults $opts]
+            $win.output tag configure $tag {*}$opts ;#[dict merge $defaults $opts]
         }
     }
+
     method SetupBinds {} {
         bind $win.input <Control-Return> [callback my <Control-Return>]
         bind $win.input <Return>         [callback my <Return>]
@@ -273,6 +286,15 @@ oo::class create Console {
         bind $win.input <Prior>          [callback my <Prior>]
         bind $win.input <Control-Up>     [callback my <Control-Up>]
         bind $win.input <Control-Down>   [callback my <Control-Down>]
+        bind $win.input <Control-y>      {event generate %W <<Redo>>; break}    ;# FIXME: tkImprover does this better
+
+        bind $win.output <Tab>           "[list ::focus $win.input]\nbreak"
+        bind $win.output <<ReadOnly>>    [callback my Flash $win.output]
+    }
+
+    method Flash {w} {
+        $w configure -background red
+        after 50 [list $w configure -background black]
     }
 
     method <Return> {} {
@@ -312,7 +334,7 @@ oo::class create Console {
         event generate $win.output <Prior>
     }
 
-    method Input {s} {
+    method input {s} {
         $win.input insert insert $s
     }
     method SetInput {text} {
@@ -349,6 +371,25 @@ oo::class create Console {
         $win.output ins end $str stderr
         $win.output see end
     }
+}
+
+
+proc copyBindtags {from to} {
+    foreach {event} [bind $from] {
+        set script [bind $from $event]
+        bind $to $event $script
+    }
+}
+
+copyBindtags Text ConsoleOutput.Text
+bind ConsoleOutput.Text <Key> {Console.Output.Key %W %K}
+
+proc Console.Output.Key {W K args} {
+    set input [winfo parent $W].input
+    if {[string match *_* $K]} {return -code continue}  ;# FIXME: imprecise HACK to avoid modifiers
+    focus $input
+    event generate $input <Key-$K>
+    return -code break
 }
 
 # A simple interactive history gadget.
