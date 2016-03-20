@@ -460,20 +460,49 @@ namespace eval fun {
         concat $tail $head
     }
 
-    # pop 1 or more items from the start of a list (into named args).  Returns last item popped.
-    -- proc lpop {_ls args} {
-        upvar 1 $_ls ls
-        if {$args eq ""} {
-            set ls [lassign $ls x]
-            return $x
+    # lpush list ?arg ...?
+    # set item [lpop list]
+    # lpop list -> a1 a2 a3
+    # lassign [lpop list 3] a1 a2 a3
+    #
+    # set list {the list}
+    # expr {[list {*}$list 1 2 3] eq [lpush list 1 2 3]}
+    # expr {[lpop list a b c] eq {the list}}
+    # expr {[list $a $b $c] eq {3 2 1}}     ;# note reversal!
+    # expr {[lpop list] eq "list"}
+
+    interp alias {} lpush {} lappend
+    proc lpop {_list args} {
+        upvar 1 $_list list
+        multiargs {
+            {} {
+                try {
+                    lindex $list end
+                } finally {
+                    set list [lrange $list 0 end-1]
+                }
+            }
+            {n} {
+                if {$n <= 0} {return ""}
+                try {
+                    lreverse [lreplace $list 0 end-$n]
+                } finally {
+                    set list [lrange $list 0 end-$n]
+                }
+            }
+            {-> args} {
+                if {${->} ne {->}} {
+                    error "Invalid arguments: expected \[lpop listName N\] or \[lpop listName -> varName ..\] or \[lpop listName\]"
+                }
+                set values [lpop list [llength $args]]
+                tailcall lassign $values {*}$args   ;# set vars in caller
+            }
         }
-        tailcall try [script {*}[lmap a $args {
-            list set [list $a] \[[list lpop $_ls]\]
-        }]]
     }
 
+    #
+    # expr {[list $a1 $a2 {*}$list] eq [lunshift list $a1 $a2]}
     # for symetry, lpop needs lpush
-    interp alias {} lpush {} lappend
 
     # pop items off the beginning of a list.
     # single argument form returns the item popped
