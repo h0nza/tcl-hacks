@@ -79,6 +79,7 @@ oo::class create WrapText {
             -maxheight  {-maxheight     maxHeight   MaxHeight   {}      {string is integer}}
             -minheight  {-minheight     minHeight   MinHeight   1       {string is integer}}
         }
+        # FIXME: add delegates
     }
 
     method SplitOpts {optargs} {    ;# lassign [my SplitOpts] hullopts myopts
@@ -198,39 +199,191 @@ oo::class create WrapText {
             set dlines [expr {min( $dlines , $Options(-maxheight) )}]
             if {$dlines != $DLines} {
                 set DLines $dlines
-                puts "Changing height: $DLines -> $dlines"
                 my configure -height $dlines
             }
         }
     }
 }
 
-proc console {w} {
-    if {![winfo exists $w]} {
-        toplevel $w
+# 
+# This provides a very simple console, suitable for embedding an interactive interpreter (like Tcl!)
+# Its backend configuration is through methods Prompt, IsComplete and Evaluate
+proc console {win args} {
+    set obj [Console new $win {*}$args]
+    rename $obj ::${win}
+    return $win
+}
+oo::class create Console {
+    variable win
+
+    constructor {w args} {
+        set win $w
+        set obj [toplevel $win]     ;# FIXME: hullargs?
+        rename ::${obj} [namespace current]::${obj}
+
+        frame $win.top -bg red
+        frame $win.bottom -bg blue
+        wraptext $win.input   -height 1  -width 80 -wrap char  -maxheight 5
+        wraptext $win.output  -height 24 -width 80 -wrap char  -readonly 1
+
+        History create history {}
+
+        #pack $win.top -side top -expand yes -fill both
+        #pack $win.bottom -side top -expand yes -fill both
+        grid $win.top -sticky nsew
+        grid $win.bottom -sticky nsew
+        grid columnconfigure $win $win.top -weight 1
+        grid rowconfigure $win $win.top -weight 1
+        grid propagate $win 1
+        pack $win.input  -in $win.bottom -expand yes -fill both
+        pack $win.output -in $win.top    -expand yes -fill both
+
+        bind $win.input <Control-Return> [callback my <Control-Return>]
+        bind $win.input <Return>         [callback my <Return>]
+        bind $win.input <Up>             [callback my <Up>]
+        bind $win.input <Down>           [callback my <Down>]
+
+        #my Configure $args
+        return $win
     }
-    frame $w.top -bg red
-    frame $w.bottom -bg blue
-    wraptext $w.input   -height 1  -width 80 -wrap char  -maxheight 5
-    wraptext $w.output  -height 24 -width 80 -wrap char  -readonly 1
-    #pack $w.top -side top -expand yes -fill both
-    #pack $w.bottom -side top -expand yes -fill both
-    grid $w.top -sticky nsew
-    grid $w.bottom -sticky nsew
-    grid columnconfigure $w $w.top -weight 1
-    grid rowconfigure $w $w.top -weight 1
-    grid propagate $w 1
-    pack $w.input  -in $w.bottom -expand yes -fill both
-    pack $w.output -in $w.top    -expand yes -fill both
-    bind $w.input <Return> [list apply {{w} {
-        $w.output ins end [$w.input get 1.0 end]
-        $w.input delete 1.0 end
+
+    method <Return> {} {
+        set script [my GetInput]
+        if {![my IsComplete $script]} {
+            return -code continue
+        } else {
+            my Execute $script
+            my SetInput ""
+            return -code break
+        }
+    }
+    method <Control-Return> {} {
+        my Input \n
         return -code break
-    }} $w]
+    }
+    method <Up> {} {
+        my SetInput [history prev [my GetInput]]
+    }
+    method <Down> {} {
+        my SetInput [history next [my GetInput]]
+    }
+
+    method Input {s} {
+        $win.input insert insert $s
+    }
+    method SetInput {text} {
+        $win.input replace 1.0 end $text
+    }
+    method GetInput {} {
+        string range [$win.input get 1.0 end] 0 end-1   ;# strip newline!
+    }
+
+    method Execute {script} {
+        $win.output ins end [my Prompt] prompt
+        $win.output ins end $script\n input
+        history add $script
+        lassign [my Evaluate $script] rc res opts
+        if {$rc == 0} {
+            if {$res ne ""} {
+                $win.output ins end $res result
+            }
+        } else {
+            $win.output ins end "\[$rc\]: $res" error
+        }
+        $win.output see end
+    }
+
+    method Prompt {}            {return "\n% "}
+    method IsComplete {script}  {info complete $script\n}
+    method Evaluate {script}    {list [catch [list uplevel #0 $script] e o] $e $o}
+
+    method stdout {str} {
+        $win.output ins end $str stdout
+        $win.output see end
+    }
+    method stderr {str} {
+        $win.output ins end $str stderr
+        $win.output see end
+    }
 }
 
+# A simple interactive history gadget.
+#   - [prev] and [next] take the current input as an argument, to stash it
+#     for later retrieval
+#   - adjacent duplicate entries are elided
+oo::class create History {
+    variable history
+    variable left
+    variable right
+    constructor {past} {
+        set history $past
+    }
+    method get {} {
+        return $history
+    }
+    method add {entry} {
+        unset -nocomplain left
+        unset -nocomplain right
+        if {$entry ne [lindex $history end]} {
+            lappend history $entry
+        }
+        return ""   ;# no result
+    }
+    method prev {curr} {
+        if {![info exists left]} {
+            set left $history
+            set right {}
+        }
+        if {$left eq ""} {
+            # complain?
+            return $curr
+        }
+        lpush right $curr
+        lpop left
+    }
+    method next {curr} {
+        if {![info exists left]} {
+            return $curr
+        }
+        if {$right eq ""} {
+            # complain?
+            return $curr
+        }
+        lpush left $curr
+        lpop right
+    }
+}
+
+# essential utilities
+proc callback {args} { tailcall namespace code $args }
+
+interp alias {} lpush {} lappend
+proc lpop {_list args} {
+    upvar 1 $_list list
+    try {
+        lindex $list end
+    } finally {
+        set list [lrange $list 0 end-1]
+    }
+}
+
+# channel redirector - assumes encoding will not change on the fly
+namespace eval teecmd {
+    proc initialize {cmd enc x mode}    {
+        info procs
+    }
+    proc finalize {cmd enc x}           { }
+    proc write {cmd enc x data}         {
+        uplevel #0 $cmd [list [encoding convertfrom $enc $data]]
+        return $data
+    }
+    proc flush {cmd enc x}              { }
+    namespace export *
+    namespace ensemble create -parameters {cmd enc}
+}
 
 wm withdraw .
 console .console
-
+chan push stdout {teecmd {.console stdout} utf-8}
+chan push stderr {teecmd {.console stderr} utf-8}
 
