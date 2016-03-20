@@ -226,7 +226,7 @@ oo::class create Console {
         wraptext $win.input   -height 1  -width 80 -wrap char  -maxheight 5
         wraptext $win.output  -height 24 -width 80 -wrap char  -readonly 1
 
-        History create history {}
+        History create history {{parray ::tcl_platform}}
 
         #pack $win.top -side top -expand yes -fill both
         #pack $win.bottom -side top -expand yes -fill both
@@ -238,13 +238,41 @@ oo::class create Console {
         pack $win.input  -in $win.bottom -expand yes -fill both
         pack $win.output -in $win.top    -expand yes -fill both
 
+        my SetupTags
+        my SetupBinds
+        #my Configure $args
+        return $win
+    }
+
+    method SetupTags {} {
+        array set tagconfig {
+            * {-background black -foreground white}
+            prompt {-foreground green}
+            input  {-foreground darkgray}
+            stdout {-foreground lightgray}
+            stderr {-foreground red}
+            result {}
+            error  {-foreground red -underline yes}
+        }
+        set textopts {-border 0 -insertbackground blue -highlightbackground darkgray -highlightcolor lightgray}
+        set defaults $tagconfig(*)
+        unset tagconfig(*)
+        $win.output configure
+        $win.output configure {*}$defaults {*}$textopts
+        $win.input configure {*}$defaults {*}$textopts
+        dict for {tag opts} [array get tagconfig] {
+            $win.output tag configure $tag {*}[dict merge $defaults $opts]
+        }
+    }
+    method SetupBinds {} {
         bind $win.input <Control-Return> [callback my <Control-Return>]
         bind $win.input <Return>         [callback my <Return>]
         bind $win.input <Up>             [callback my <Up>]
         bind $win.input <Down>           [callback my <Down>]
-
-        #my Configure $args
-        return $win
+        bind $win.input <Next>           [callback my <Next>]
+        bind $win.input <Prior>          [callback my <Prior>]
+        bind $win.input <Control-Up>     [callback my <Control-Up>]
+        bind $win.input <Control-Down>   [callback my <Control-Down>]
     }
 
     method <Return> {} {
@@ -266,6 +294,22 @@ oo::class create Console {
     }
     method <Down> {} {
         my SetInput [history next [my GetInput]]
+    }
+    method <Control-Down> {} {
+        focus $win.output
+        event generate $win.output <Down>
+    }
+    method <Control-Up> {} {
+        focus $win.output
+        event generate $win.output <Up>
+    }
+    method <Next> {} {
+        focus $win.output
+        event generate $win.output <Next>
+    }
+    method <Prior> {} {
+        focus $win.output
+        event generate $win.output <Prior>
     }
 
     method Input {s} {
