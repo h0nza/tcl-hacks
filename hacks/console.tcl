@@ -468,6 +468,57 @@ proc lpop {_list args} {
     }
 }
 
+# substitute a list using command rules
+proc lsub script {              ;# [sl] from the wiki
+    set res {}
+    set parts {}
+    foreach part [split $script \n] {
+        lappend parts $part
+        set part [join $parts \n]
+        #add the newline that was stripped because it can make a difference
+        if {[info complete $part\n]} {
+            set parts {}
+            set part [string trim $part]
+            if {$part eq {}} {
+                continue
+            }
+            if {[string index $part 0] eq {#}} {
+                continue
+            }
+            #Here, the double-substitution via uplevel is intended!
+            lappend res {*}[uplevel list $part]
+        }
+    }
+    if {$parts ne {}} {
+        error [list {incomplete parts} [join $parts]]
+    }
+    return $res
+}
+
+# dict utilities
+# SYNOPSIS: dictable {name access} {alice admin bob user charlie guest}
+proc dictable {names list} {
+    set args [join [lmap name $names {
+        set name [list $name]
+        subst -noc {$name [set $name]}
+    }] " "]
+    lmap $names $list "dict create $args"
+}
+
+# SYNOPSIS: dict subst {name jack} {Hello, $name!}
+proc dict.subst {dict __unlikely_string_arg_name__} {
+    dict with dict {
+        subst ${:__unlikely_string_arg_name__]}
+    }
+}
+
+# SYNOPSIS: dict subl {a "Hello, %s!\n" b World} {$a $b}
+proc dict.lsub {dict __unlikely_string_arg_name__} {
+    dict with dict {
+        lsub ${:__unlikely_string_arg_name__]}
+    }
+}
+
 # channel redirector - assumes encoding will not change on the fly
 namespace eval teechan {
     proc initialize {cmd enc x mode}    {
