@@ -35,7 +35,7 @@ oo::class create WrapText {
         lassign [my SplitOpts $args] myargs hullargs
         set obj [text $win {*}$hullargs]
         rename ::${obj} [namespace current]::${obj}
-        set defaults [dict map {opt spec} [my OptSpec] {lindex $spec 3}]
+        set defaults [dict map {opt spec} [my OptSpec] {lindex $spec 3}]    ;# yuck
         set myargs   [dict merge $defaults $myargs]
         #my SetupOptTrace
         my Configure $myargs
@@ -107,7 +107,7 @@ oo::class create WrapText {
         }
     }
     method Verify {option value} {
-        set cmd [lindex [dict get [my OptSpec] $option] 4]
+        set cmd [lindex [dict get [my OptSpec] $option] 4]  ;# yuck
         if {![uplevel #0 $cmd [list $value]]} {
             throw {TK BAD OPTION} "Bad value for \"$option\", should be \[$cmd\], not \"$value\""
         }
@@ -119,6 +119,7 @@ oo::class create WrapText {
         if {$args eq ""} {
             set speclist [$hull configure]
             foreach {option spec} [my OptSpec] {
+                set spec [lreplace $spec 4 end $Options($option)]   ;# yuck
                 lappend speclist $spec
             }
             return $speclist
@@ -126,7 +127,7 @@ oo::class create WrapText {
         set spec [my OptSpec]
         return [lmap option $args {
             if {[dict exists $spec $option]} {
-                dict get $spec $option
+                lreplace [dict get $spec $option] 4 end $Options($option)   ;# yuck
             } else {
                 $hull configure $option
             }
