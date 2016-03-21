@@ -73,7 +73,7 @@ oo::class create WrapText {
     # but a method is syntactically convenient, and the tclobj will be cached
     method OptSpec {} {
         #  {-commandlineswitch resourceName ResourceClass defaultValue verifier}
-        # snit provides -default -verifier -configuremethod -cgetmethod
+        # snit provides -default -verifier -configuremethod -cgetmethod, [delegate]
         return {
             -readonly   {-readonly      readOnly    ReadOnly    false   {string is boolean}}
             -maxheight  {-maxheight     maxHeight   MaxHeight   {}      {string is integer}}
@@ -82,6 +82,7 @@ oo::class create WrapText {
         # FIXME: add delegates
     }
 
+    # utility for configuration: separate options into hull (passthrough) and local
     method SplitOpts {optargs} {    ;# lassign [my SplitOpts] hullopts myopts
         set myargs {}
         set spec [my OptSpec]
@@ -96,6 +97,7 @@ oo::class create WrapText {
         list $myargs $hullargs
     }
 
+    # configuration private interface:
     method Configure {optargs} {
         foreach {option value} $optargs {
             my Verify $option $value
@@ -161,7 +163,7 @@ oo::class create WrapText {
         }
     }
 
-    # basic text wrappers:
+    # basic text wrappers .. looks like it wants AOP:
     forward ins hull insert
     forward del hull delete
     forward rep hull replace
@@ -217,6 +219,10 @@ oo::class create WrapText {
 # 
 # This provides a very simple console, suitable for embedding an interactive interpreter (like Tcl!)
 # Its backend configuration is through methods Prompt, IsComplete and Evaluate
+#
+# Illustration here is of a megawidget which does *not* delegate most commands to its hull.  Instead,
+# it has a richer [configure]tion and type-specific methods.  Bindings are more imporant.
+#
 proc console {win args} {
     set obj [Console new $win {*}$args]
     rename $obj ::${win}
@@ -289,7 +295,7 @@ oo::class create Console {
         bind $win.input <Control-y>      {event generate %W <<Redo>>; break}    ;# FIXME: tkImprover does this better
 
         bind $win.output <Tab>           "[list ::focus $win.input]\nbreak"
-        bind $win.output <<ReadOnly>>    [callback my Flash $win.output]
+        bind $win.output <<ReadOnly>>    [callback my Flash $win.output]        ;# delegate to <<Alert>> event?
     }
 
     method Flash {w} {
@@ -334,7 +340,8 @@ oo::class create Console {
         event generate $win.output <Prior>
     }
 
-    method input {s} {
+    # input simplified accessors
+    method Input {s} {
         $win.input insert insert $s
     }
     method SetInput {text} {
@@ -344,6 +351,7 @@ oo::class create Console {
         string range [$win.input get 1.0 end] 0 end-1   ;# strip newline!
     }
 
+    # evaluate current input, also make a history entry
     method Execute {script} {
         $win.output ins end [my Prompt] prompt
         $win.output ins end $script\n input
@@ -359,10 +367,18 @@ oo::class create Console {
         $win.output see end
     }
 
+    # configurable items:
     method Prompt {}            {return "\n% "}
     method IsComplete {script}  {info complete $script\n}
     method Evaluate {script}    {list [catch [list uplevel #0 $script] e o] $e $o}
 
+    # public interfaces to io:
+    method input {s} {
+        my Input $s
+    }
+    method clearInput {} {
+        my SetInput ""
+    }
     method stdout {str} {
         $win.output ins end $str stdout
         $win.output see end
@@ -409,7 +425,7 @@ oo::class create History {
     method add {entry} {
         unset -nocomplain left
         unset -nocomplain right
-        if {$entry ne [lindex $history end]} {
+        if {$entry ne "" && $entry ne [lindex $history end]} {
             lappend history $entry
         }
         return ""   ;# no result
@@ -453,7 +469,7 @@ proc lpop {_list args} {
 }
 
 # channel redirector - assumes encoding will not change on the fly
-namespace eval teecmd {
+namespace eval teechan {
     proc initialize {cmd enc x mode}    {
         info procs
     }
@@ -469,6 +485,6 @@ namespace eval teecmd {
 
 wm withdraw .
 console .console
-chan push stdout {teecmd {.console stdout} utf-8}
-chan push stderr {teecmd {.console stderr} utf-8}
+chan push stdout {teechan {.console stdout} utf-8}
+chan push stderr {teechan {.console stderr} utf-8}
 
