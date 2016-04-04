@@ -623,5 +623,57 @@ proc console_interp {} {
     return $int
 }
 
-set i [console_interp]
+proc console_thread {} {
+    set t [thread::create]
+
+    thread::send $t {
+        # proxy version of [method Evaluate]
+        proc :Try {script} {
+            list [catch [list uplevel #0 $script] e o] $e $o]
+        }
+        # channel redirector - underlying channel should be in binary mode
+        namespace eval redir {
+            proc initialize {chan x mode}    {
+                info procs
+            }
+            proc finalize {chan x}           { }
+            proc write {chan x data}         {
+                puts -nonewline $chan $data
+                return ""
+            }
+            proc flush {chan x}              { }
+            namespace export *
+            namespace ensemble create -parameters {chan}
+        }
+    }
+
+    set eval        [list apply {{tid script} {thread::send $tid [list :Try $script]}} $t]
+    set prompt      {return \n%\ }
+    set iscomplete  {info complete}
+
+    console .console -eval $eval -prompt $prompt -iscomplete $iscomplete
+
+    foreach basechan {stdout stderr} {
+        lassign [chan pipe] r w
+        chan configure $w -buffering none -translation binary
+        chan configure $r -encoding    [chan configure $basechan -encoding]
+        chan configure $r -translation [chan configure $basechan -translation]
+        chan configure $r -blocking 0
+        chan configure $r -eofchar {}   ;# override this because eww eofchar
+        chan configure $w -eofchar {}   ;# override this because eww eofchar
+        thread::transfer $t $w
+        thread::send $t [list apply {{chan redir} {
+            chan configure $chan -eofchar {} -buffering none    ;# unbuffer
+            chan push $chan [list redir $redir]
+        }} $basechan $w]
+        chan event $r readable [list apply {{r basechan} {
+            .console $basechan [read $r]
+        }} $r $basechan]
+    }
+    return $t
+}
+
+package require Thread
+#set i [console_interp]
+set i [console_thread]
 puts "Interpreter is $i"
