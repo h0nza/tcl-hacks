@@ -278,7 +278,14 @@ oo::class create Console {
 
     method Configure {optargs} {
         dict for {option value} $optargs {
+            incr ite [expr {$option in "-interp -thread -eval"}]
             switch $option {
+                "-interp" {
+                    oo::objdefine [self] method Evaluate {script} "my EvalInterp [list $value] \$script"
+                }
+                "-thread" {
+                    oo::objdefine [self] method Evaluate {script} "my EvalThread [list $value] \$script"
+                }
                 "-eval" {
                     oo::objdefine [self] method Evaluate {script} "[list {*}$value] \$script"
                 }
@@ -293,6 +300,9 @@ oo::class create Console {
                     throw {TCL BADARGS} "Unknown option \"$option\", expected one of -eval, -prompt or -iscomplete"
                 }
             }
+        }
+        if {$ite > 1} {
+            throw {TCL BADARGS} "Can only provide one of -interp, -thread or -eval"
         }
     }
 
@@ -392,7 +402,14 @@ oo::class create Console {
         $win.output ins end [my Prompt] prompt
         $win.output ins end $script\n input
         history add $script
-        lassign [my Evaluate $script] rc res opts
+        # lassign [my Evaluate $script] rc res opts
+        my ShowResult {*}[my Evaluate $script]
+    }
+
+    method ShowResult {rc res opts} {
+        # this might want to be more clever about:
+        #   - insert a leading newline if not at bol
+        #   - add a newline at the end
         if {$rc == 0} {
             if {$res ne ""} {
                 $win.output ins end $res result
@@ -407,6 +424,32 @@ oo::class create Console {
     method Prompt {}            {return "\n% "}
     method IsComplete {script}  {info complete $script\n}
     method Evaluate {script}    {list [catch [list uplevel #0 $script] e o] $e $o}
+
+    method EvalInterp {interp script} {
+        set Try {apply {{script} {
+            list [catch $script e o] $e $o
+        }}}
+        set script [list {*}$Try $script]
+        $interp eval $script
+    }
+
+    method EvalThread {thread script} {
+        coroutine [namespace current]::eval#[history size] my EvalThreadCoro $thread $script
+        tailcall tailcall return     ;# yes, really :P
+    }
+    method EvalThreadCoro {thread script} {
+        set Try {apply {{script} {
+            list [catch $script e o] $e $o
+        }}}
+        set script [list {*}$Try $script]
+        thread::send -async $thread $script [namespace current]::evalresult([info coroutine])
+        set resultvar [namespace current]::evalresult([info coroutine])
+        trace add variable $resultvar write [info coroutine]
+        yieldto string cat
+        lassign [set $resultvar] r e o
+        unset $resultvar
+        after idle [callback my ShowResult $r $e $o]
+    }
 
     # public interfaces to io:
     method input {s} {
@@ -489,6 +532,7 @@ oo::class create History {
         lpush left $curr
         lpop right
     }
+    method size {} {llength $history}
 }
 
 # essential utilities
@@ -585,21 +629,10 @@ proc console_interp {} {
 
     # set up aliases in the interp:
     #   :Stdout :Stderr - commands which take a string to write
-    #   :Try - proxy [method Evaluate]
     interp alias $int :Stdout {} .console stdout
     interp alias $int :Stderr {} .console stderr
 
-    $int eval {
-        # proxy version of [method Evaluate]
-        proc :Try {args} {
-            list [catch [list uplevel #0 $args] e o] $e $o]
-        }
-    }
-
-    set eval        [list $int eval :Try]
-    set prompt      {return \n%\ }
-    set iscomplete  {info complete}
-    console .console -eval $eval -prompt $prompt -iscomplete $iscomplete
+    console .console -interp $int
 
     $int eval {
         # channel redirector - assumes encoding will not change on the fly
@@ -627,10 +660,6 @@ proc console_thread {} {
     set t [thread::create]
 
     thread::send $t {
-        # proxy version of [method Evaluate]
-        proc :Try {script} {
-            list [catch [list uplevel #0 $script] e o] $e $o]
-        }
         # channel redirector - underlying channel should be in binary mode
         namespace eval redir {
             proc initialize {chan x mode}    {
@@ -647,11 +676,7 @@ proc console_thread {} {
         }
     }
 
-    set eval        [list apply {{tid script} {thread::send $tid [list :Try $script]}} $t]
-    set prompt      {return \n%\ }
-    set iscomplete  {info complete}
-
-    console .console -eval $eval -prompt $prompt -iscomplete $iscomplete
+    console .console -thread $t
 
     foreach basechan {stdout stderr} {
         lassign [chan pipe] r w
