@@ -157,6 +157,11 @@ namespace eval leaves {
             set v [lindex $vers 0]
             set v1 [split $v .]
             # FIXME: behaviour on a.b versions may be dodgy
+            # NOTE: npm uses ^ for a similar (?) meaning:
+            #     ^1.2.3 := >=1.2.3 <2.0.0
+            #     ^0.2.3 := >=0.2.3 <0.3.0
+            #     ^0.0.3 := >=0.0.3 <0.0.4
+            #  see https://nodesource.com/blog/semver-tilde-and-caret/
             lset v1 end [expr {1+[lindex $v1 end]}]
             set v1 [join $v1 .]
             lset vers 0 $v-$v1
@@ -284,7 +289,7 @@ namespace eval leaves {
         return ""   ;# failed to mount
     }
 
-    db::qproc Find { 
+    db::qproc Find {
         pkg     %
         ver     0-
         path    %

@@ -52,3 +52,12 @@ There is a notifier pattern hidden in here:
     delete event
 
 unrelated margin note: [yieldto _ [info coroutine]] ~= (call/cc)
+
+
+Further refinements might be had from examining:
+
+  http://jlongster.com/Taming-the-Asynchronous-Beast-with-CSP-in-JavaScript
+
+Note that his [go] returns a one-shot channel for the generator's final result.
+[take [timeout 100]] vs [sleep 100] is a tidy identity too.
+Sliding and Dropping channels are missing from securitykiss CSP and this implementation.
