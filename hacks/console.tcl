@@ -279,6 +279,9 @@ oo::class create Console {
     method Configure {optargs} {
         dict for {option value} $optargs {
             incr ite [expr {$option in "-interp -thread -eval"}]
+            if {$ite > 1} {
+                throw {TCL BADARGS} "Can only provide one of -interp, -thread or -eval"
+            }
             switch $option {
                 "-interp" {
                     oo::objdefine [self] method Evaluate {script} "my EvalInterp [list $value] \$script"
@@ -300,9 +303,6 @@ oo::class create Console {
                     throw {TCL BADARGS} "Unknown option \"$option\", expected one of -eval, -prompt or -iscomplete"
                 }
             }
-        }
-        if {$ite > 1} {
-            throw {TCL BADARGS} "Can only provide one of -interp, -thread or -eval"
         }
     }
 
@@ -599,19 +599,20 @@ proc dict.lsub {dict :__unlikely_string_arg_name__} {
     }
 }
 
-# channel redirector - assumes encoding will not change on the fly
-namespace eval teechan {
-    proc initialize {cmd enc x mode}    {
+namespace eval tee {
+    proc initialize {chan cmd x mode}  {
         info procs
     }
-    proc finalize {cmd enc x}           { }
-    proc write {cmd enc x data}         {
-        uplevel #0 $cmd [list [encoding convertfrom $enc $data]]
+    proc finalize   {chan cmd x}       { }
+    proc write      {chan cmd x data}  {
+        set enc [chan configure $chan -encoding]
+        lappend cmd [encoding convertfrom $enc $data]
+        uplevel #0 $cmd
         return $data
     }
-    proc flush {cmd enc x}              { }
+    proc flush      {chan cmd x}       { }
     namespace export *
-    namespace ensemble create -parameters {cmd enc}
+    namespace ensemble create -parameters {chan cmdprefix}
 }
 
 
@@ -619,8 +620,8 @@ wm withdraw .
 
 proc console_in_main {} {
     console .console
-    chan push stdout {teechan {.console stdout} utf-8}
-    chan push stderr {teechan {.console stderr} utf-8}
+    chan push stdout {tee stdout {.console stdout}}
+    chan push stderr {tee stdout {.console stderr}}
 }
 
 proc console_interp {} {
@@ -635,22 +636,25 @@ proc console_interp {} {
     console .console -interp $int
 
     $int eval {
-        # channel redirector - assumes encoding will not change on the fly
-        namespace eval teechan {
-            proc initialize {cmd enc x mode}    {
+        # channel redirector
+        namespace eval Tee {
+            proc initialize {chan cmd x mode}  {
                 info procs
             }
-            proc finalize {cmd enc x}           { }
-            proc write {cmd enc x data}         {
-                uplevel #0 $cmd [list [encoding convertfrom $enc $data]]
+            proc finalize   {chan cmd x}       { }
+            proc write      {chan cmd x data}  {
+                set enc [chan configure $chan -encoding]
+                lappend cmd [encoding convertfrom $enc $data]
+                uplevel #0 $cmd
                 return $data
             }
-            proc flush {cmd enc x}              { }
+            proc flush      {chan cmd x}       { }
             namespace export *
-            namespace ensemble create -parameters {cmd enc}
+            namespace ensemble create -parameters {chan cmdprefix}
         }
-        chan push stdout {teechan :Stdout utf-8}
-        chan push stderr {teechan :Stderr utf-8}
+
+        chan push stdout {Tee stdout :Stdout}
+        chan push stderr {Tee stderr :Stderr}
     }
 
     return $int
@@ -699,6 +703,7 @@ proc console_thread {} {
 }
 
 package require Thread
-#set i [console_interp]
-set i [console_thread]
+set i [console_interp]
+#set i [console_thread]
+#set i [console_in_main]
 puts "Interpreter is $i"
