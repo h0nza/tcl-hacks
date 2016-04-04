@@ -233,6 +233,8 @@ proc console {win args} {
 oo::class create Console {
     variable win
 
+    variable Options
+
     constructor {w args} {
         set win $w
         set obj [toplevel $win]     ;# FIXME: hullargs?
@@ -272,17 +274,25 @@ oo::class create Console {
 
         my SetupTags
         my SetupBinds
+        # -block:  0: don't block input;  1: block input;  2: only highlight
+        array set Options {
+            -block 1
+        }
         my Configure $args
         return $win
     }
 
     method Configure {optargs} {
+        variable Options
         dict for {option value} $optargs {
             incr ite [expr {$option in "-interp -thread -eval"}]
             if {$ite > 1} {
                 throw {TCL BADARGS} "Can only provide one of -interp, -thread or -eval"
             }
             switch $option {
+                "-block" {
+                    set Options(-block) $value
+                }
                 "-interp" {
                     oo::objdefine [self] method Evaluate {script} "my EvalInterp [list $value] \$script"
                 }
@@ -354,7 +364,7 @@ oo::class create Console {
         if {![my IsComplete $script]} {
             return -code continue
         } else {
-            my Execute $script
+            after idle [callback my Execute $script]
             my SetInput ""
             return -code break
         }
@@ -441,6 +451,12 @@ oo::class create Console {
         set Try {apply {{script} {
             list [catch $script e o] $e $o
         }}}
+
+        if {$Options(-block)} {
+            my BlockInput
+            finally [callback my UnblockInput]
+        }
+
         set script [list {*}$Try $script]
         thread::send -async $thread $script [namespace current]::evalresult([info coroutine])
         set resultvar [namespace current]::evalresult([info coroutine])
@@ -449,6 +465,23 @@ oo::class create Console {
         lassign [set $resultvar] r e o
         unset $resultvar
         after idle [callback my ShowResult $r $e $o]
+    }
+
+    method BlockInput {} {
+        variable BlockDepth
+        incr BlockDepth
+        if {$Options(-block) == 2} {
+            $win.input configure -background gray -state disabled
+        } else {
+            $win.input configure -background gray
+        }
+    }
+    method UnblockInput {} {
+        variable BlockDepth
+        incr BlockDepth -1
+        if {$BlockDepth == 0} {
+            $win.input configure -background black -state normal
+        }
     }
 
     # public interfaces to io:
@@ -537,6 +570,7 @@ oo::class create History {
 
 # essential utilities
 proc callback {args} { tailcall namespace code $args }
+proc finally {script} { tailcall trace add variable :#finally_var#: unset "$script\n;#" }
 
 interp alias {} lpush {} lappend
 proc lpop {_list args} {
@@ -703,7 +737,7 @@ proc console_thread {} {
 }
 
 package require Thread
-set i [console_interp]
-#set i [console_thread]
 #set i [console_in_main]
+#set i [console_interp]
+set i [console_thread]
 puts "Interpreter is $i"
