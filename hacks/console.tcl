@@ -17,6 +17,7 @@
 #       interacts with the above - an empty widget will be this high
 #
 package require Tk
+#package require autoscroll      ;# tklib
 
 # the constructor needs some help:
 proc wraptext {win args} {
@@ -239,8 +240,14 @@ oo::class create Console {
 
         frame $win.top -bg red
         frame $win.bottom -bg blue
-        wraptext $win.output  -height 24 -width 80 -wrap char  -readonly 1
-        wraptext $win.input   -height 1  -width 80 -wrap char  -maxheight 5 -undo 1
+
+        #scrollbar $win.output_scrolly -orient v -command [list $win.output yview]
+        #scrollbar $win.input_scrolly  -orient v -command [list $win.input yview]
+
+        wraptext $win.output  -height 24 -width 80 -wrap char  -readonly 1 \
+            ;#-yscrollcommand [list $win.output_scrolly set]
+        wraptext $win.input   -height 1  -width 80 -wrap char  -maxheight 5 -undo 1 \
+            ;#-yscrollcommand [list $win.input_scrolly set]
         bindtags $win.output [string map {Text ConsoleOutput.Text} [bindtags $win.output]]
 
         History create history {{parray ::tcl_platform}}
@@ -252,8 +259,16 @@ oo::class create Console {
         grid columnconfigure $win $win.top -weight 1
         grid rowconfigure $win $win.top -weight 1
         grid propagate $win 1
+
+        #pack $win.output_scrolly -in $win.top    -side right -fill y
+        #pack $win.input_scrolly  -in $win.bottom -side right -fill y
+
         pack $win.output -in $win.top    -expand yes -fill both
         pack $win.input  -in $win.bottom -expand yes -fill both
+
+        # FIXME: autoscroll isn't doing what I want, particularly on .output
+        #autoscroll::autoscroll $win.output_scrolly
+        #autoscroll::autoscroll $win.input_scrolly
 
         my SetupTags
         my SetupBinds
