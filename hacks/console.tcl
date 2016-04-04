@@ -147,6 +147,7 @@ oo::class create WrapText {
                 trace add variable Options($option) read  [callback my [dict get $info cgetmethod     ]]
             }
             if {[dict exists $info delegate]} {
+                # TODO: handle *
                 trace add variable Options($option) write [callback my DelegateOption $option [dict get $info delegate]]
                 trace add variable Options($option) read  [callback my DelegateOption $option [dict get $info delegate]]
             }
@@ -258,6 +259,7 @@ oo::class create Console {
         my SetupTags
         my SetupBinds
         #my Configure $args
+        focus $win.input    ;# FIXME: ???
         return $win
     }
 
