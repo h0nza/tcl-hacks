@@ -99,10 +99,10 @@ oo::class create WrapText {
 
     # configuration private interface:
     method Configure {optargs} {
-        foreach {option value} $optargs {
+        dict for {option value} $optargs {
             my Verify $option $value
         }
-        foreach {option value} $optargs {
+        dict for {option value} $optargs {
             set Options($option) $value
         }
     }
@@ -257,8 +257,28 @@ oo::class create Console {
 
         my SetupTags
         my SetupBinds
-        #my Configure $args
+        my Configure $args
         return $win
+    }
+
+    method Configure {optargs} {
+        dict for {option value} $optargs {
+            switch $option {
+                "-eval" {
+                    oo::objdefine [self] method Evaluate {script} "[list {*}$value] \$script"
+                }
+                "-prompt" {
+                    oo::objdefine [self] method Prompt {} $value
+                }
+                "-iscomplete" {
+                    # note the appended \n !
+                    oo::objdefine [self] method IsComplete {script} "[list {*}$value] \$script\\n"
+                }
+                default {
+                    throw {TCL BADARGS} "Unknown option \"$option\", expected one of -eval, -prompt or -iscomplete"
+                }
+            }
+        }
     }
 
     method SetupTags {} {
@@ -507,14 +527,14 @@ proc dictable {names list} {
 }
 
 # SYNOPSIS: dict subst {name jack} {Hello, $name!}
-proc dict.subst {dict __unlikely_string_arg_name__} {
+proc dict.subst {dict :__unlikely_string_arg_name__} {
     dict with dict {
         subst ${:__unlikely_string_arg_name__]}
     }
 }
 
-# SYNOPSIS: dict subl {a "Hello, %s!\n" b World} {$a $b}
-proc dict.lsub {dict __unlikely_string_arg_name__} {
+# SYNOPSIS: dict lsub {a "Hello, %s!\n" b World} {$a $b}
+proc dict.lsub {dict :__unlikely_string_arg_name__} {
     dict with dict {
         lsub ${:__unlikely_string_arg_name__]}
     }
@@ -535,8 +555,58 @@ namespace eval teechan {
     namespace ensemble create -parameters {cmd enc}
 }
 
-wm withdraw .
-console .console
-chan push stdout {teechan {.console stdout} utf-8}
-chan push stderr {teechan {.console stderr} utf-8}
 
+wm withdraw .
+
+proc console_in_main {} {
+    console .console
+    chan push stdout {teechan {.console stdout} utf-8}
+    chan push stderr {teechan {.console stderr} utf-8}
+}
+
+proc console_interp {} {
+
+    set int [interp create]
+
+    # set up aliases in the interp:
+    #   :Stdout :Stderr - commands which take a string to write
+    #   :Try - proxy [method Evaluate]
+    interp alias $int :Stdout {} .console stdout
+    interp alias $int :Stderr {} .console stderr
+
+    $int eval {
+        # proxy version of [method Evaluate]
+        proc :Try {args} {
+            list [catch [list uplevel #0 $args] e o] $e $o]
+        }
+    }
+
+    set eval        [list $int eval :Try]
+    set prompt      {return \n%\ }
+    set iscomplete  {info complete}
+    console .console -eval $eval -prompt $prompt -iscomplete $iscomplete
+
+    $int eval {
+        # channel redirector - assumes encoding will not change on the fly
+        namespace eval teechan {
+            proc initialize {cmd enc x mode}    {
+                info procs
+            }
+            proc finalize {cmd enc x}           { }
+            proc write {cmd enc x data}         {
+                uplevel #0 $cmd [list [encoding convertfrom $enc $data]]
+                return $data
+            }
+            proc flush {cmd enc x}              { }
+            namespace export *
+            namespace ensemble create -parameters {cmd enc}
+        }
+        chan push stdout {teechan :Stdout utf-8}
+        chan push stderr {teechan :Stderr utf-8}
+    }
+
+    return $int
+}
+
+set i [console_interp]
+puts "Interpreter is $i"
