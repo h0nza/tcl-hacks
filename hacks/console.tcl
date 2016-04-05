@@ -533,14 +533,16 @@ oo::class create Console {
         $win.output ins end [my Prompt] prompt
         $win.output ins end $script\n input
         history add $script
-        # lassign [my Evaluate $script] rc res opts
-        my ShowResult {*}[my Evaluate $script]
+        set result [my Evaluate $script]
+        # let the event loop catch up before showing the result (think IO)
+        after idle [list after 0 [callback my ShowResult {*}$result]]
     }
 
     method ShowResult {rc res opts} {
         # this might want to be more clever about:
         #   - insert a leading newline if not at bol
         #   - add a newline at the end
+        #   - trimming extremely long output
         if {$rc == 0} {
             if {$res ne ""} {
                 $win.output ins end $res result
