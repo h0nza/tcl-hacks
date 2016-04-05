@@ -290,6 +290,29 @@ oo::class create Console {
         return $win
     }
 
+    # public interfaces to io:
+    method input {s} {
+        my Input $s
+    }
+    method clearInput {} {
+        my SetInput ""
+    }
+    method stdout {str} {
+        $win.output ins end $str stdout
+        $win.output see end
+    }
+    method stderr {str} {
+        $win.output ins end $str stderr
+        $win.output see end
+    }
+
+    # silent eval:
+    method eval {script} {
+        lassign [my Evaluate $script] rc res opts
+        return -code $rc -options $opts $res
+    }
+
+    # useful for pulling the interp/thread out of a console:
     method cget {option} {
         try {
             return $Options($option)
@@ -298,8 +321,12 @@ oo::class create Console {
         }
     }
 
-    method Configure {optargs} {    ;# most of these only make sense on creation
-        variable Options            ;# runtime configuration will require some care
+    # runtime configuration is NOT SUPPORTED
+    # because most options only make sense at creation time
+    # and a means to mark options "readonly" is not yet available
+
+    method Configure {optargs} {
+        variable Options
         dict for {option value} $optargs {
             incr ite [expr {$option in "-interp -thread -eval"}]
             if {$ite > 1} {
@@ -487,12 +514,8 @@ oo::class create Console {
         $interp eval $script
     }
 
-    # evaluator for -thread (async!):
+    # evaluator for -thread (async! using vwait):
     method EvalThread {thread script} {
-        coroutine [namespace current]::eval#[history size] my EvalThreadCoro $thread $script
-        tailcall tailcall return     ;# yes, really :P
-    }
-    method EvalThreadCoro {thread script} {
         set Try {apply {{script} {
             list [catch {uplevel #0 $script} e o] $e $o
         }}}
@@ -502,14 +525,21 @@ oo::class create Console {
             finally [callback my UnblockInput]
         }
 
+        set ID [history size]
+        set resultvar [namespace current]::evalresult($ID)
+
         set script [list {*}$Try $script]
-        thread::send -async $thread $script [namespace current]::evalresult([info coroutine])
-        set resultvar [namespace current]::evalresult([info coroutine])
-        trace add variable $resultvar write [info coroutine]
-        yieldto string cat
-        lassign [set $resultvar] r e o
-        unset $resultvar
-        after idle [callback my ShowResult $r $e $o]
+
+        thread::send -async $thread $script $resultvar
+
+        if {[info coroutine] ne ""} {   ;# FIXME: not really a good idea.  See [yieldfor]
+            trace add variable $resultvar write [info coroutine]
+            yieldto string cat
+        } else {
+            vwait $resultvar
+        }
+
+        return [set $resultvar][unset $resultvar]
     }
 
     method BlockInput {} {
@@ -527,22 +557,6 @@ oo::class create Console {
         if {$BlockDepth == 0} {
             $win.input configure -background black -state normal
         }
-    }
-
-    # public interfaces to io:
-    method input {s} {
-        my Input $s
-    }
-    method clearInput {} {
-        my SetInput ""
-    }
-    method stdout {str} {
-        $win.output ins end $str stdout
-        $win.output see end
-    }
-    method stderr {str} {
-        $win.output ins end $str stderr
-        $win.output see end
     }
 
     # setup for stdout/stderr in slave
@@ -708,31 +722,8 @@ proc lsub script {              ;# [sl] from the wiki
     return $res
 }
 
-# dict utilities
-# SYNOPSIS: dictable {name access} {alice admin bob user charlie guest}
-proc dictable {names list} {
-    set args [join [lmap name $names {
-        set name [list $name]
-        subst -noc {$name [set $name]}
-    }] " "]
-    lmap $names $list "dict create $args"
-}
 
-# SYNOPSIS: dict subst {name jack} {Hello, $name!}
-proc dict.subst {dict :__unlikely_string_arg_name__} {
-    dict with dict {
-        subst ${:__unlikely_string_arg_name__]}
-    }
-}
-
-# SYNOPSIS: dict lsub {a "Hello, %s!\n" b World} {$a $b}
-proc dict.lsub {dict :__unlikely_string_arg_name__} {
-    dict with dict {
-        lsub ${:__unlikely_string_arg_name__]}
-    }
-}
-
-# Channel redirection:
+# Channel redirection:
 #
 # it's desirable to capture stdout/stderr of embedded interpreters(/threads)
 # for redirection to the console.  We can do this quite nicely with channel
@@ -838,6 +829,8 @@ namespace eval transchans {
 }
 
 
+# main script:
+#
 package require Thread
 wm withdraw .
 
@@ -851,3 +844,4 @@ console .console -thread % -stdout tee
 set i [.console cget -thread]
 
 puts "Interpreter is $i"
+puts "Console says [.console eval {package require Tcl}]"
