@@ -284,8 +284,8 @@ oo::class create Console {
         return $win
     }
 
-    method Configure {optargs} {
-        variable Options
+    method Configure {optargs} {    ;# most of these only make sense on creation
+        variable Options            ;# runtime configuration will require some care
         dict for {option value} $optargs {
             incr ite [expr {$option in "-interp -thread -eval"}]
             if {$ite > 1} {
@@ -315,6 +315,7 @@ oo::class create Console {
                     throw {TCL BADARGS} "Unknown option \"$option\", expected one of -eval, -prompt or -iscomplete"
                 }
             }
+            set Options($option) $value
         }
     }
 
@@ -363,6 +364,7 @@ oo::class create Console {
 
     method <Return> {} {
         set script [my GetInput]
+        # FIXME: check for meta-commands
         if {![my IsComplete $script]} {
             return -code continue
         } else {
@@ -429,29 +431,32 @@ oo::class create Console {
         } else {
             $win.output ins end "\[$rc\]: $res" error
         }
+        # FIXME: store last command result
         $win.output see end
     }
 
-    # configurable items:
+    # configurable items - see [method Configure]:
     method Prompt {}            {return "\n% "}
     method IsComplete {script}  {info complete $script\n}
-    method Evaluate {script}    {list [catch [list uplevel #0 $script] e o] $e $o}
+    method Evaluate {script}    {list [catch {uplevel #0 $script} e o] $e $o}
 
+    # evaluator for -interp:
     method EvalInterp {interp script} {
         set Try {apply {{script} {
-            list [catch $script e o] $e $o
+            list [catch {uplevel #0 $script} e o] $e $o
         }}}
         set script [list {*}$Try $script]
         $interp eval $script
     }
 
+    # evaluator for -thread (async!):
     method EvalThread {thread script} {
         coroutine [namespace current]::eval#[history size] my EvalThreadCoro $thread $script
         tailcall tailcall return     ;# yes, really :P
     }
     method EvalThreadCoro {thread script} {
         set Try {apply {{script} {
-            list [catch $script e o] $e $o
+            list [catch {uplevel #0 $script} e o] $e $o
         }}}
 
         if {$Options(-block)} {
@@ -635,20 +640,109 @@ proc dict.lsub {dict :__unlikely_string_arg_name__} {
     }
 }
 
-namespace eval tee {
-    proc initialize {chan cmd x mode}  {
-        info procs
+# Channel redirection:
+#
+# it's desirable to capture stdout/stderr of embedded interpreters(/threads)
+# for redirection to the console.  We can do this quite nicely with channel
+# transformers (aka transchans - see [chan push]), but there are some details
+# to get right:
+#
+#   * for same-thread (even inter-interp) comms, redirecting to a command
+#     is fine.
+#   * for inter-thread comms, it works better to have a [chan pipe] for
+#     copying data to the main thread.
+#   * in each case, we may want to either retain or suppress output on
+#     the original stdchan.
+#
+# Rather than loading up a single transformer with options, we simply
+# define four:  {Tee,Redir}{Chan,Cmd}
+#
+#   * Tee *copies* its output, leaving a copy on the tty
+#   * Redir *redirects* its output, not letting it reach the tty
+#
+#   * Chan's destination is a channel, which must be in binary mode (and should be unbuffered)
+#   * Cmd's destination is a cmdPrefix, which will receive decoded unicode
+#
+# Only Cmd variants need to receive the underlying chan as an argument.
+#
+# Their [namespace eval] scripts are all stored in variables for conveniently sending
+# to another interp (or thread)
+#
+namespace eval transchans {
+
+    # Usage:
+    #   chan push $chan [list TeeCmd $chan $cmdPrefix]
+    variable TeeCmd {
+        proc initialize {chan cmd x mode}  {
+            info procs
+        }
+        proc finalize   {chan cmd x}       { }
+        proc write      {chan cmd x data}  {
+            set enc [chan configure $chan -encoding]
+            lappend cmd [encoding convertfrom $enc $data]
+            uplevel #0 $cmd
+            return $data
+        }
+        proc flush      {chan cmd x}       { }
+        namespace export *
+        namespace ensemble create -parameters {chan cmdprefix}
     }
-    proc finalize   {chan cmd x}       { }
-    proc write      {chan cmd x data}  {
-        set enc [chan configure $chan -encoding]
-        lappend cmd [encoding convertfrom $enc $data]
-        uplevel #0 $cmd
-        return $data
+    namespace eval TeeCmd $TeeCmd
+
+    #   chan push $chan [list RedirCmd $chan $cmdPrefix]
+    variable RedirCmd {
+        proc initialize {chan cmd x mode}  {
+            info procs
+        }
+        proc finalize   {chan cmd x}       { }
+        proc write      {chan cmd x data}  {
+            set enc [chan configure $chan -encoding]
+            lappend cmd [encoding convertfrom $enc $data]
+            uplevel #0 $cmd
+            return $data
+        }
+        proc flush      {chan cmd x}       { }
+        namespace export *
+        namespace ensemble create -parameters {chan cmdprefix}
     }
-    proc flush      {chan cmd x}       { }
-    namespace export *
-    namespace ensemble create -parameters {chan cmdprefix}
+    namespace eval RedirCmd $RedirCmd
+
+
+    # if dest is a pipe, be sure to set the read side's encoding
+    # to the same as the underlying channel
+    #
+    # Usage:
+    #   chan push $chan [list TeeChan $redir]
+    variable TeeChan {
+        proc initialize {rechan x mode}  {
+            info procs
+        }
+        proc finalize {rechan x}         { }
+        proc write {rechan x data}       {
+            puts -nonewline $rechan $data
+            return $data
+        }
+        proc flush {rechan x}            { }
+        namespace export *
+        namespace ensemble create -parameters {rechan}
+    }
+    namespace eval TeeChan $TeeChan
+
+    #   chan push $chan [list RedirChan $redir]
+    variable RedirChan {
+        proc initialize {rechan x mode}  {
+            info procs
+        }
+        proc finalize {rechan x}         { }
+        proc write {rechan x data}       {
+            puts -nonewline $rechan $data
+            return ""
+        }
+        proc flush {rechan x}            { }
+        namespace export *
+        namespace ensemble create -parameters {rechan}
+    }
+    namespace eval RedirChan $RedirChan
 }
 
 
@@ -656,90 +750,70 @@ wm withdraw .
 
 proc console_in_main {} {
     console .console
-    chan push stdout {tee stdout {.console stdout}}
-    chan push stderr {tee stdout {.console stderr}}
+    chan push stdout {transchans::TeeCmd stdout {.console stdout}}
+    chan push stderr {transchans::TeeCmd stdout {.console stderr}}
 }
 
-proc console_interp {} {
-
+proc console_interp {{win .console}} {
     set int [interp create]
-
-    # set up aliases in the interp:
-    #   :Stdout :Stderr - commands which take a string to write
-    interp alias $int :Stdout {} .console stdout
-    interp alias $int :Stderr {} .console stderr
-
-    console .console -interp $int
-
-    $int eval {
-        # channel redirector
-        namespace eval Tee {
-            proc initialize {chan cmd x mode}  {
-                info procs
-            }
-            proc finalize   {chan cmd x}       { }
-            proc write      {chan cmd x data}  {
-                set enc [chan configure $chan -encoding]
-                lappend cmd [encoding convertfrom $enc $data]
-                uplevel #0 $cmd
-                return $data
-            }
-            proc flush      {chan cmd x}       { }
-            namespace export *
-            namespace ensemble create -parameters {chan cmdprefix}
-        }
-
-        chan push stdout {Tee stdout :Stdout}
-        chan push stderr {Tee stderr :Stderr}
-    }
-
+    console $win -interp $int
+    plumb_interp $win $int
     return $int
 }
 
-proc console_thread {} {
-    set t [thread::create]
-
-    thread::send $t {
-        # channel redirector - underlying channel should be in binary mode
-        namespace eval redir {
-            proc initialize {chan x mode}    {
-                info procs
-            }
-            proc finalize {chan x}           { }
-            proc write {chan x data}         {
-                puts -nonewline $chan $data
-                return ""
-            }
-            proc flush {chan x}              { }
-            namespace export *
-            namespace ensemble create -parameters {chan}
-        }
+# NOTE that plumbing an interp *also affects stdchans in the master interp*
+proc plumb_interp {win int {kind tee}} {
+    # set up aliases in the interp:
+    #   :Stdout :Stderr - commands which take a string to write
+    interp alias $int :Stdout {} $win stdout
+    interp alias $int :Stderr {} $win stderr
+    if {$kind eq "tee"} {
+        set script $::transchans::TeeCmd
+    } elseif {$kind eq "redir"} {
+        set script $::transchans::RedirCmd
     }
+    $int eval [list namespace eval StdRedir $script]
+    $int eval {
+        chan push stdout {StdRedir stdout :Stdout}
+        chan push stderr {StdRedir stderr :Stderr}
+    }
+}
 
-    console .console -thread $t
+proc console_thread {{win .console}} {
+    set tid [thread::create]
+    console $win -thread $tid
+    plumb_thread $win $tid
+    return $tid
+}
 
+proc plumb_thread {win tid {kind tee}} {
+    if {$kind eq "tee"} {
+        set script $::transchans::TeeChan
+    } elseif {$kind eq "redir"} {
+        set script $::transchans::RedirChan
+    }
+    thread::send $tid [list namespace eval StdRedir $script]
     foreach basechan {stdout stderr} {
         lassign [chan pipe] r w
-        chan configure $w -buffering none -translation binary
+        chan configure $w -buffering none -translation binary -eofchar {}
+        chan configure $r -blocking 0 -eofchar {}
         chan configure $r -encoding    [chan configure $basechan -encoding]
         chan configure $r -translation [chan configure $basechan -translation]
-        chan configure $r -blocking 0
-        chan configure $r -eofchar {}   ;# override this because eww eofchar
-        chan configure $w -eofchar {}   ;# override this because eww eofchar
-        thread::transfer $t $w
-        thread::send $t [list apply {{chan redir} {
+        thread::transfer $tid $w
+        thread::send $tid [list apply {{chan redir} {
             chan configure $chan -eofchar {} -buffering none    ;# unbuffer
-            chan push $chan [list redir $redir]
+            chan push $chan [list StdRedir $redir]
         }} $basechan $w]
-        chan event $r readable [list apply {{r basechan} {
-            .console $basechan [read $r]
-        }} $r $basechan]
+        chan event $r readable [list apply {{win r basechan} {
+            $win $basechan [read $r]
+        }} $win $r $basechan]
+        # FIXME: handle cleanup/eof
     }
-    return $t
 }
 
 package require Thread
 #set i [console_in_main]
-#set i [console_interp]
-set i [console_thread]
+set i [console_interp]
+#set i [console_thread]
 puts "Interpreter is $i"
+after 4000 {puts [package require Tcl]}
