@@ -276,12 +276,26 @@ oo::class create Console {
         my SetupTags
         my SetupBinds
         # -block:  0: don't block input;  1: block input;  2: only highlight
+        # -interp: % to create a new one, or the handle of an existing interp
+        # -thread: % to create a new one, or the id of an existing thread
+        # -stdout:  tee/copy or redir/move to appropriately plumb stdout/err in the target
         array set Options {
-            -block 1
+            -block  1
+            -interp ""
+            -thread ""
+            -stdout ""
         }
         my Configure $args
         focus $win.input    ;# FIXME: ???
         return $win
+    }
+
+    method cget {option} {
+        try {
+            return $Options($option)
+        } on error {} {
+            throw [list TK LOOKUP OPTION $option] "unknown option \"$option\""
+        }
     }
 
     method Configure {optargs} {    ;# most of these only make sense on creation
@@ -296,10 +310,25 @@ oo::class create Console {
                     set Options(-block) $value
                 }
                 "-interp" {
+                    if {$value eq "%"} {
+                        set value [interp create]
+                    }
                     oo::objdefine [self] method Evaluate {script} "my EvalInterp [list $value] \$script"
                 }
                 "-thread" {
+                    if {$value eq "%"} {
+                        set value [thread::create]
+                    }
                     oo::objdefine [self] method Evaluate {script} "my EvalThread [list $value] \$script"
+                }
+                "-stdout" {
+                    if {$value in {"tee" "copy"}} {
+                        set value tee
+                    } elseif {$value in {"redir" "move"}} {
+                        set value redir
+                    } else {
+                        throw {TCL BADARGS} "Unknown value for option -stdout \"$value\", should be one of \"tee\", \"redir\""
+                    }
                 }
                 "-eval" {
                     oo::objdefine [self] method Evaluate {script} "[list {*}$value] \$script"
@@ -316,6 +345,15 @@ oo::class create Console {
                 }
             }
             set Options($option) $value
+            if {$Options(-stdout) ne ""} {
+                if {$Options(-thread) ne ""} {
+                    my PlumbThread $Options(-thread) $Options(-stdout)
+                } elseif {$Options(-interp) ne ""} {
+                    my PlumbInterp $Options(-interp) $Options(-stdout)
+                } else {
+                    my Plumb $Options(-stdout)
+                }
+            }
         }
     }
 
@@ -506,6 +544,60 @@ oo::class create Console {
         $win.output ins end $str stderr
         $win.output see end
     }
+
+    # setup for stdout/stderr in slave
+    method Plumb {{kind tee}} {
+        if {$kind eq "tee"} {
+            chan push stdout [list ::transchans::TeeCmd stdout [callback my stderr]]
+            chan push stderr [list ::transchans::TeeCmd stdout [callback my stderr]]
+        } else {
+            chan push stdout [list ::transchans::RedirCmd stdout [callback my stderr]]
+            chan push stderr [list ::transchans::RedirCmd stdout [callback my stderr]]
+        }
+        # FIXME: hookup destruction!
+    }
+    method PlumbInterp {int {kind tee}} {
+        # set up aliases in the interp:
+        #   :Stdout :Stderr - commands which take a string to write
+        interp alias $int :Stdout {} $win stdout
+        interp alias $int :Stderr {} $win stderr
+        if {$kind eq "tee"} {
+            set script $::transchans::TeeCmd
+        } elseif {$kind eq "redir"} {
+            set script $::transchans::RedirCmd
+        }
+        $int eval [list namespace eval StdRedir $script]
+        $int eval {
+            chan push stdout {StdRedir stdout :Stdout}
+            chan push stderr {StdRedir stderr :Stderr}
+        }
+        # FIXME: hookup destruction!
+    }
+    method PlumbThread {tid {kind tee}} {
+        if {$kind eq "tee"} {
+            set script $::transchans::TeeChan
+        } elseif {$kind eq "redir"} {
+            set script $::transchans::RedirChan
+        }
+        thread::send $tid [list namespace eval StdRedir $script]
+        foreach basechan {stdout stderr} {
+            lassign [chan pipe] r w
+            chan configure $w -buffering none -translation binary -eofchar {}
+            chan configure $r -blocking 0 -eofchar {}
+            chan configure $r -encoding    [chan configure $basechan -encoding]
+            chan configure $r -translation [chan configure $basechan -translation]
+            thread::transfer $tid $w
+            thread::send $tid [list apply {{chan redir} {
+                chan configure $chan -eofchar {} -buffering none    ;# unbuffer
+                chan push $chan [list StdRedir $redir]
+            }} $basechan $w]
+            chan event $r readable [list apply {{win r basechan} {
+                $win $basechan [read $r]
+            }} $win $r $basechan]
+            # FIXME: hookup destruction!
+        }
+    }
+
 }
 
 
@@ -746,74 +838,16 @@ namespace eval transchans {
 }
 
 
+package require Thread
 wm withdraw .
 
-proc console_in_main {} {
-    console .console
-    chan push stdout {transchans::TeeCmd stdout {.console stdout}}
-    chan push stderr {transchans::TeeCmd stdout {.console stderr}}
-}
+#console .console -stdout tee
+#set i .console
 
-proc console_interp {{win .console}} {
-    set int [interp create]
-    console $win -interp $int
-    plumb_interp $win $int
-    return $int
-}
+#console .console -interp % -stdout tee
+#set i [.console cget -interp]
 
-# NOTE that plumbing an interp *also affects stdchans in the master interp*
-proc plumb_interp {win int {kind tee}} {
-    # set up aliases in the interp:
-    #   :Stdout :Stderr - commands which take a string to write
-    interp alias $int :Stdout {} $win stdout
-    interp alias $int :Stderr {} $win stderr
-    if {$kind eq "tee"} {
-        set script $::transchans::TeeCmd
-    } elseif {$kind eq "redir"} {
-        set script $::transchans::RedirCmd
-    }
-    $int eval [list namespace eval StdRedir $script]
-    $int eval {
-        chan push stdout {StdRedir stdout :Stdout}
-        chan push stderr {StdRedir stderr :Stderr}
-    }
-}
+console .console -thread % -stdout tee
+set i [.console cget -thread]
 
-proc console_thread {{win .console}} {
-    set tid [thread::create]
-    console $win -thread $tid
-    plumb_thread $win $tid
-    return $tid
-}
-
-proc plumb_thread {win tid {kind tee}} {
-    if {$kind eq "tee"} {
-        set script $::transchans::TeeChan
-    } elseif {$kind eq "redir"} {
-        set script $::transchans::RedirChan
-    }
-    thread::send $tid [list namespace eval StdRedir $script]
-    foreach basechan {stdout stderr} {
-        lassign [chan pipe] r w
-        chan configure $w -buffering none -translation binary -eofchar {}
-        chan configure $r -blocking 0 -eofchar {}
-        chan configure $r -encoding    [chan configure $basechan -encoding]
-        chan configure $r -translation [chan configure $basechan -translation]
-        thread::transfer $tid $w
-        thread::send $tid [list apply {{chan redir} {
-            chan configure $chan -eofchar {} -buffering none    ;# unbuffer
-            chan push $chan [list StdRedir $redir]
-        }} $basechan $w]
-        chan event $r readable [list apply {{win r basechan} {
-            $win $basechan [read $r]
-        }} $win $r $basechan]
-        # FIXME: handle cleanup/eof
-    }
-}
-
-package require Thread
-#set i [console_in_main]
-set i [console_interp]
-#set i [console_thread]
 puts "Interpreter is $i"
-after 4000 {puts [package require Tcl]}
