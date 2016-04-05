@@ -1,5 +1,9 @@
 # SYNOPSIS:
+#
 #   console *windowPath* ?options?
+#
+
+# OPTIONS:
 #
 #     -interp %         - create a new interp.  Can be queried by [$win cget -interp]
 #     -interp $int      - use an existing interp.
@@ -24,8 +28,24 @@
 #     -iscomplete       - command to determine whether input is a complete command.
 #
 
+# WIDGET COMMANDS:
+#
+#    cget /option/      - useful for -thread, -interp
+#
+#    eval /script/      - evaluate a script and return its result
+#                         uses a trampoline to return errors and options
+#
+#    input /text/       - append $text to input, as though it had been typed/pasted by the user
+#
+#    stdout /text/      - emit $text to the emulated stdout
+#
+#    stderr /text/      - emit $text to the emulated stderr
+#
+#    history /subcmd/   - access to input history
+
 # TODO:
-#   The console window wants to be able to hold more widgets.  Figure that out.
+#   Destructor.
+#   The console window sometimes wants to share with other widgets.  Figure that out.
 
 # Wraptext serves as a reference for wrapping Tk widgets in TclOO objects, and
 # provides a widget which extends on text:
@@ -44,8 +64,10 @@
 #
 #       interacts with the above - an empty widget will be this high
 #
+
 package require Tk
 #package require autoscroll      ;# tklib
+
 
 # the constructor needs some help:
 proc wraptext {win args} {
@@ -317,6 +339,8 @@ oo::class create Console {
         focus $win.input    ;# FIXME: ???
         return $win
     }
+
+    forward history history
 
     # public interfaces to io:
     method input {s} {
@@ -590,11 +614,11 @@ oo::class create Console {
     # setup for stdout/stderr in slave
     method Plumb {{kind tee}} {
         if {$kind eq "tee"} {
-            chan push stdout [list ::transchans::TeeCmd stdout [callback my stderr]]
-            chan push stderr [list ::transchans::TeeCmd stdout [callback my stderr]]
+            chan push stdout [list ::transchans::TeeCmd stdout [callback my stdout]]
+            chan push stderr [list ::transchans::TeeCmd stderr [callback my stderr]]
         } else {
-            chan push stdout [list ::transchans::RedirCmd stdout [callback my stderr]]
-            chan push stderr [list ::transchans::RedirCmd stdout [callback my stderr]]
+            chan push stdout [list ::transchans::RedirCmd stdout [callback my stdout]]
+            chan push stderr [list ::transchans::RedirCmd stderr [callback my stderr]]
         }
         # FIXME: hookup destruction!
     }
@@ -723,33 +747,6 @@ proc lpop {_list args} {
     }
 }
 
-# substitute a list using command rules
-proc lsub script {              ;# [sl] from the wiki
-    set res {}
-    set parts {}
-    foreach part [split $script \n] {
-        lappend parts $part
-        set part [join $parts \n]
-        #add the newline that was stripped because it can make a difference
-        if {[info complete $part\n]} {
-            set parts {}
-            set part [string trim $part]
-            if {$part eq {}} {
-                continue
-            }
-            if {[string index $part 0] eq {#}} {
-                continue
-            }
-            #Here, the double-substitution via uplevel is intended!
-            lappend res {*}[uplevel list $part]
-        }
-    }
-    if {$parts ne {}} {
-        error [list {incomplete parts} [join $parts]]
-    }
-    return $res
-}
-
 
 # Channel redirection:
 #
@@ -862,14 +859,40 @@ namespace eval transchans {
 package require Thread
 wm withdraw .
 
-#console .console -stdout tee
-#set i .console
+console .console -stdout tee
+set i .console
+
+# hacky autoscroll which packs itself *inside* the scrolled widget
+# this would work better if the scrollbar were styled to avoid obscuring text ..
+proc autoscroll {w} {
+    pack propagate $w off
+    $w configure -yscrollcommand [callback autoscrollCmd $w]
+}
+
+proc autoscrollCmd {w min max} {
+    if {$min > 0.0 || $max < 1.0} {
+        set sy [ttk::scrollbar $w.sy -orient vert -command [list $w yview]]
+        pack $sy -in $w -side right -fill y
+        $w configure -yscrollcommand [list autoscrollCmd2 $w $sy]
+        #puts "$w $min $max"
+    }
+}
+proc autoscrollCmd2 {w sy min max} {
+    if {$min <= 0.0 && $max >= 1.0} {
+        destroy $sy
+        $w configure -yscrollcommand [list autoscrollCmd $w]
+    } else {
+        tailcall $sy set $min $max
+    }
+}
+update
+autoscroll .console.output
 
 #console .console -interp % -stdout tee
 #set i [.console cget -interp]
 
-console .console -thread % -stdout tee
-set i [.console cget -thread]
+#console .console -thread % -stdout tee
+#set i [.console cget -thread]
 
 puts "Interpreter is $i"
 puts "Console says [.console eval {package require Tcl}]"
