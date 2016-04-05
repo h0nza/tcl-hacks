@@ -1,5 +1,33 @@
+# SYNOPSIS:
+#   console *windowPath* ?options?
 #
-# This serves as a reference for wrapping Tk widgets in TclOO objects, and
+#     -interp %         - create a new interp.  Can be queried by [$win cget -interp]
+#     -interp $int      - use an existing interp.
+#
+#     -thread %         - create a new thread.  Can be queried by [$win cget -thread]
+#     -thread $tid      - use an existing thread.
+#
+#     -stdout /mode/    - mode is either "tee" or "copy" to copy stdout/err into the console
+#                         or "redir" or "move" to redirect stdout/err into the console.
+#                         Default is empty:  no touching of stdout/err.
+#                         This will do the right thing if -interp or -thread is used.
+#
+#     -block 0|1|2      - makes sense for -thread:
+#                         0 - no blocking;
+#                         1 - highlight when blocked (but accept input)
+#                         2 - block when blocked
+#
+#     -eval             - custom evaluator.  Takes a script and returns [list $rc $result $opts]
+#
+#     -prompt           - custom prompt method body.
+#
+#     -iscomplete       - command to determine whether input is a complete command.
+#
+
+# TODO:
+#   The console window wants to be able to hold more widgets.  Figure that out.
+
+# Wraptext serves as a reference for wrapping Tk widgets in TclOO objects, and
 # provides a widget which extends on text:
 #
 #   option -readonly false boolean
