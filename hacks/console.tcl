@@ -66,7 +66,8 @@
 #
 
 package require Tk
-#package require autoscroll      ;# tklib
+source /home/aspect/autoscroll.tcl
+package require autoscroll      ;# tklib
 
 
 # the constructor needs some help:
@@ -294,13 +295,13 @@ oo::class create Console {
         frame $win.top -bg red
         frame $win.bottom -bg blue
 
-        #scrollbar $win.output_scrolly -orient v -command [list $win.output yview]
-        #scrollbar $win.input_scrolly  -orient v -command [list $win.input yview]
+        scrollbar $win.output_scrolly -orient v -command [list $win.output yview]
+        scrollbar $win.input_scrolly  -orient v -command [list $win.input yview]
 
         wraptext $win.output  -height 24 -width 80 -wrap char  -readonly 1 \
-            ;#-yscrollcommand [list $win.output_scrolly set]
+            -yscrollcommand [list $win.output_scrolly set]
         wraptext $win.input   -height 1  -width 80 -wrap char  -maxheight 5 -undo 1 \
-            ;#-yscrollcommand [list $win.input_scrolly set]
+            -yscrollcommand [list $win.input_scrolly set]
         bindtags $win.output [string map {Text ConsoleOutput.Text} [bindtags $win.output]]
 
         History create history {{parray ::tcl_platform}}
@@ -313,15 +314,15 @@ oo::class create Console {
         grid rowconfigure $win $win.top -weight 1
         grid propagate $win 1
 
-        #pack $win.output_scrolly -in $win.top    -side right -fill y
-        #pack $win.input_scrolly  -in $win.bottom -side right -fill y
+        pack $win.output_scrolly -in $win.top    -side right -fill y
+        pack $win.input_scrolly  -in $win.bottom -side right -fill y
 
         pack $win.output -in $win.top    -expand yes -fill both
         pack $win.input  -in $win.bottom -expand yes -fill both
 
         # FIXME: autoscroll isn't doing what I want, particularly on .output
-        #autoscroll::autoscroll $win.output_scrolly
-        #autoscroll::autoscroll $win.input_scrolly
+        after idle [list after 0 [list autoscroll::autoscroll $win.output_scrolly]]
+        after idle [list after 0 [list autoscroll::autoscroll $win.input_scrolly]]
 
         my SetupTags
         my SetupBinds
@@ -861,9 +862,6 @@ namespace eval transchans {
 package require Thread
 wm withdraw .
 
-console .console -stdout tee
-set i .console
-
 # hacky autoscroll which packs itself *inside* the scrolled widget
 # this would work better if the scrollbar were styled to avoid obscuring text ..
 proc autoscroll {w} {
@@ -887,14 +885,18 @@ proc autoscrollCmd2 {w sy min max} {
         tailcall $sy set $min $max
     }
 }
-update
-autoscroll .console.output
+
+console .console -stdout tee
+set i .console
 
 #console .console -interp % -stdout tee
 #set i [.console cget -interp]
 
 #console .console -thread % -stdout tee
 #set i [.console cget -thread]
+
+#update
+#autoscroll .console.output
 
 puts "Interpreter is $i"
 puts "Console says [.console eval {package require Tcl}]"
