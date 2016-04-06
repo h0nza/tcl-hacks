@@ -44,8 +44,11 @@
 #    history /subcmd/   - access to input history
 
 # TODO:
-#   Destructor.
-#   The console window sometimes wants to share with other widgets.  Figure that out.
+#   * tab-completion
+#   * history search
+#   * share window with statusbar, menu and docked buttonbox (how?)
+#   * persistent history
+#   * host commands via a sigil
 
 # Wraptext serves as a reference for wrapping Tk widgets in TclOO objects, and
 # provides a widget which extends on text:
@@ -65,7 +68,7 @@
 #       interacts with the above - an empty widget will be this high
 #
 
-package require Tk
+package require Tk          ;# needs to be present at load time for copyBindtags
 #package require autoscroll      ;# tklib
 
 
