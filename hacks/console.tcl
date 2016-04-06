@@ -83,17 +83,28 @@ namespace eval tksh {
         # the widget bit:
         variable hull
         constructor {win args} {
+            namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]   ;# having to do this kinda sucks
+
             set hull $win
             proc hull args "$win {*}\$args"
+
             lassign [my SplitOpts $args] myargs hullargs
+
             set obj [text $win {*}$hullargs]
             rename ::${obj} [namespace current]::${obj}
+            trace add command [namespace current]::${obj} delete [thunk my destroy]
+
             set defaults [dict map {opt spec} [my OptSpec] {lindex $spec 3}]    ;# yuck
             set myargs   [dict merge $defaults $myargs]
             #my SetupOptTrace
             my Configure $myargs
             return $win
         }
+
+        destructor {
+            #puts "Destroying: [self]"
+        }
+
         method unknown args {
             tailcall $hull {*}$args
         }
@@ -289,11 +300,12 @@ namespace eval tksh {
         variable Options
 
         constructor {w args} {
+            namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]   ;# having to do this kinda sucks
+
             set win $w
             set obj [toplevel $win]     ;# FIXME: hullargs?
             rename ::${obj} [namespace current]::${obj}
-
-            namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]   ;# having to do this kinda sucks
+            trace add command [namespace current]::${obj} delete [thunk my destroy]
 
             frame $win.top -bg red
             frame $win.bottom -bg blue
@@ -342,6 +354,25 @@ namespace eval tksh {
             my Configure $args
             focus $win.input    ;# FIXME: ???
             return $win
+        }
+
+        method OnDestroy {script} {
+            variable DestroyList
+            lappend DestroyList $script
+        }
+
+        destructor {
+            variable DestroyList
+            if {[info exists DestroyList]} {
+                foreach script [lreverse $DestroyList] {
+                    try {
+                        uplevel #0 $script
+                    } on error {e o} {
+                        set e "during [self] destructor: \"$e\" in {$script}"
+                        after idle [list return -code error -options $o $e]
+                    }
+                }
+            }
         }
 
         forward history history
@@ -395,12 +426,14 @@ namespace eval tksh {
                     "-interp" {
                         if {$value eq "%"} {
                             set value [interp create]
+                            my OnDestroy [list interp delete $value]
                         }
                         oo::objdefine [self] method Evaluate {script} "my EvalInterp [list $value] \$script"
                     }
                     "-thread" {
                         if {$value eq "%"} {
                             set value [thread::create]
+                            my OnDestroy [list thread::release $value]
                         }
                         oo::objdefine [self] method Evaluate {script} "my EvalThread [list $value] \$script"
                     }
@@ -626,7 +659,8 @@ namespace eval tksh {
                 chan push stdout [callback transchans::RedirCmd stdout [callback my stdout]]
                 chan push stderr [callback transchans::RedirCmd stderr [callback my stderr]]
             }
-            # FIXME: hookup destruction!
+
+            my OnDestroy {chan pop stderr; chan pop stdout}
         }
         method PlumbInterp {int {kind tee}} {
             # set up aliases in the interp:
@@ -643,7 +677,8 @@ namespace eval tksh {
                 chan push stdout {StdRedir stdout :Stdout}
                 chan push stderr {StdRedir stderr :Stderr}
             }
-            # FIXME: hookup destruction!
+
+            my OnDestroy [list $int eval {chan pop stderr; chan pop stdout}]
         }
         method PlumbThread {tid {kind tee}} {
             if {$kind eq "tee"} {
@@ -666,7 +701,9 @@ namespace eval tksh {
                 chan event $r readable [list apply {{win r basechan} {
                     $win $basechan [read $r]
                 }} $win $r $basechan]
-                # FIXME: hookup destruction!
+
+                my OnDestroy [list chan close $r]   ;# NOTE reverse order
+                my OnDestroy [list chan event $r readable ""]
             }
         }
 
@@ -701,6 +738,7 @@ namespace eval tksh {
         variable right
         constructor {past} {
             namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]   ;# having to do this kinda sucks
+
             set history $past
         }
         method get {} {
@@ -742,6 +780,7 @@ namespace eval tksh {
 
     # essential utilities
     proc callback {args} { tailcall namespace code $args }
+    proc thunk {args} { list ::apply [list args $args [uplevel 1 {namespace current}]] }
     proc finally {script} { tailcall trace add variable :#finally_var#: unset "$script\n;#" }
 
     interp alias {} lpush {} lappend
@@ -878,7 +917,6 @@ namespace eval tksh {
             set sy [ttk::scrollbar $w.sy -orient vert -command [list $w yview]]
             pack $sy -in $w -side right -fill y
             $w configure -yscrollcommand [list autoscrollCmd2 $w $sy]
-            #puts "$w $min $max"
         }
     }
     proc autoscrollCmd2 {w sy min max} {
@@ -910,6 +948,7 @@ if {[info exists ::argv0] && $::argv0 eq [info script]} {
 
     console .console -thread % -stdout tee
     set i [.console cget -thread]
+
     .console eval { ;# {} - fix syntax
         lappend ::argv              ;# these make threads much happier
         append ::argv0 {}
