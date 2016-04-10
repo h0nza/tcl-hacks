@@ -23,6 +23,8 @@
 #
 #     -eval             - custom evaluator.  Takes a script and returns [list $rc $result $opts]
 #
+#     -evalprefix       - all commands will be prefixed with this.  Note [cmd subs] are unaffected.
+#
 #     -prompt           - custom prompt method body.
 #
 #     -iscomplete       - command to determine whether input is a complete command.
@@ -85,15 +87,15 @@ namespace eval tksh {
 
         # the widget bit:
         variable hull
-        constructor {win args} {
+        constructor {w args} {
             namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]   ;# having to do this kinda sucks
 
-            set hull $win
-            proc hull args "$win {*}\$args"
+            set hull $w
+            proc hull args "$hull {*}\$args"
 
             lassign [my SplitOpts $args] myargs hullargs
 
-            set obj [text $win {*}$hullargs]
+            set obj [text $hull {*}$hullargs]
             rename ::${obj} [namespace current]::${obj}
             trace add command [namespace current]::${obj} delete [thunk my destroy]
 
@@ -101,11 +103,10 @@ namespace eval tksh {
             set myargs   [dict merge $defaults $myargs]
             #my SetupOptTrace
             my Configure $myargs
-            return $win
         }
 
         destructor {
-            #puts "Destroying: [self]"
+            #after 0 [list after idle [list puts "Destroyed: [self]"]]
         }
 
         method unknown args {
@@ -286,6 +287,81 @@ namespace eval tksh {
     }
 
     # 
+    # A simple vertically-oriented button box with convenient methods for adding buttons
+    proc buttonbox {win args} {
+        set obj [ButtonBox new $win {*}$args]
+        rename $obj ::${win}
+        return $win
+    }
+    oo::class create ButtonBox {
+        variable hull
+        variable Options
+        variable Buttons
+        variable ID
+
+        constructor {w args} {
+            namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]   ;# having to do this kinda sucks
+
+            set hull $w
+            proc hull args "$hull {*}\$args"
+
+            set obj [ttk::frame $hull]     ;# FIXME: hullargs?
+
+            rename ::${obj} [namespace current]::${obj}
+            trace add command [namespace current]::${obj} delete [thunk my destroy]
+        }
+
+        method unknown args {
+            tailcall $hull {*}$args
+        }
+
+
+        method add {text cmd args} {
+            set id $text
+            set btn $hull.b[incr ID]
+            lassign [::tk::UnderlineAmpersand $text] label ul
+            set accel [string index $label $ul]
+
+            ttk::button $btn -text $label -underline $ul -command $cmd  {*}$args
+            pack $btn -side top -fill x
+
+            set top [winfo toplevel $hull]  ;# configureable option?
+
+            set key <Alt-[string tolower $accel]>
+
+            set invoke "
+                after 0 {after idle {
+                    event generate [list $btn] <<Invoke>>
+                }}
+            "
+
+            if {[bind $top $key] ne ""} {
+                puts "WARNING: $key is already bound!"
+            } else {
+                bind $top $key $invoke
+                trace add command $btn delete [thunk bind $top $key {}]
+            }
+
+            return $btn
+        }
+        method remove args {
+            foreach id $args {
+                if {[winfo exists $id]} {
+                    set btn $id
+                    set label [dict get $Buttons widget $btn]
+                } elseif {![catch {set btn [dict get $Buttons label $id]}]} {
+                    set widget $id
+                } else {
+                    continue
+                }
+                destroy $widget
+                dict unset Buttons label  $id
+                dict unset Buttons widget $btn
+            }
+        }
+    }
+
+    # 
     # This provides a very simple console, suitable for embedding an interactive interpreter (like Tcl!)
     # Its backend configuration is through methods Prompt, IsComplete and Evaluate
     #
@@ -298,49 +374,57 @@ namespace eval tksh {
         return $win
     }
     oo::class create Console {
-        variable win
+        variable hull
 
         variable Options
 
         constructor {w args} {
             namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]   ;# having to do this kinda sucks
 
-            set win $w
-            set obj [toplevel $win]     ;# FIXME: hullargs?
+            set hull $w
+            set obj [toplevel $hull -padx 5 -pady 5 -bg darkgrey]     ;# FIXME: hullargs?
             rename ::${obj} [namespace current]::${obj}
             trace add command [namespace current]::${obj} delete [thunk my destroy]
 
-            frame $win.top -bg red
-            frame $win.bottom -bg blue
+            ttk::frame $hull.top -style Tksh.TFrame
+            ttk::frame $hull.bottom -style Tksh.TFrame
 
-            #scrollbar $win.output_scrolly -orient v -command [list $win.output yview]
-            #scrollbar $win.input_scrolly  -orient v -command [list $win.input yview]
+            #scrollbar $hull.output_scrolly -orient v -command [list $hull.output yview]
+            #scrollbar $hull.input_scrolly  -orient v -command [list $hull.input yview]
 
-            wraptext $win.output  -height 24 -width 80 -wrap char  -readonly 1 \
-                ;#-yscrollcommand [list $win.output_scrolly set]
-            wraptext $win.input   -height 1  -width 80 -wrap char  -maxheight 5 -undo 1 \
-                ;#-yscrollcommand [list $win.input_scrolly set]
-            bindtags $win.output [string map {Text ConsoleOutput.Text} [bindtags $win.output]]
+            wraptext $hull.output  -height 24 -width 80 -wrap char  -readonly 1 \
+                ;#-yscrollcommand [list $hull.output_scrolly set]
+            wraptext $hull.input   -height 1  -width 80 -wrap char  -maxheight 5 -undo 1 \
+                ;#-yscrollcommand [list $hull.input_scrolly set]
+
+            buttonbox $hull.buttons
+            oo::objdefine [self] forward buttons $hull.buttons
+
+            #my buttons add "&Packages" [callback my input "after 2000; package names\n"]
+
+            bindtags $hull.output [string map {Text ConsoleOutput.Text} [bindtags $hull.output]]
 
             History create history {{parray ::tcl_platform}}
 
-            #pack $win.top -side top -expand yes -fill both
-            #pack $win.bottom -side top -expand yes -fill both
-            grid $win.top -sticky nsew
-            grid $win.bottom -sticky nsew
-            grid columnconfigure $win $win.top -weight 1
-            grid rowconfigure $win $win.top -weight 1
-            grid propagate $win 1
+            #pack $hull.top -side top -expand yes -fill both
+            #pack $hull.bottom -side top -expand yes -fill both
+            grid $hull.top -sticky nsew
+            grid $hull.bottom -sticky nsew
+            grid columnconfigure $hull $hull.top -weight 1
+            grid rowconfigure $hull $hull.top -weight 1
+            grid propagate $hull 1
 
-            #pack $win.output_scrolly -in $win.top    -side right -fill y
-            #pack $win.input_scrolly  -in $win.bottom -side right -fill y
+            #pack $hull.output_scrolly -in $hull.top    -side right -fill y
+            #pack $hull.input_scrolly  -in $hull.bottom -side right -fill y
 
-            pack $win.output -in $win.top    -expand yes -fill both
-            pack $win.input  -in $win.bottom -expand yes -fill both
+            pack $hull.buttons -in $hull.top      -side right -anchor n ;#-fill y
+            pack $hull.output -in $hull.top    -expand yes -fill both
+            pack $hull.input  -in $hull.bottom -expand yes -fill both
+
 
             # FIXME: autoscroll isn't doing what I want, particularly on .output
-            #autoscroll::autoscroll $win.output_scrolly
-            #autoscroll::autoscroll $win.input_scrolly
+            #autoscroll::autoscroll $hull.output_scrolly
+            #autoscroll::autoscroll $hull.input_scrolly
 
             my SetupTags
             my SetupBinds
@@ -353,10 +437,21 @@ namespace eval tksh {
                 -interp ""
                 -thread ""
                 -stdout ""
+                -evalprefix ""
+                -resultvar :::
             }
             my Configure $args
-            focus $win.input    ;# FIXME: ???
-            return $win
+            if {$Options(-stdout) ne ""} {
+                if {$Options(-thread) ne ""} {
+                    my PlumbThread $Options(-thread) $Options(-stdout)
+                } elseif {$Options(-interp) ne ""} {
+                    my PlumbInterp $Options(-interp) $Options(-stdout)
+                } else {
+                    my Plumb $Options(-stdout)
+                }
+            }
+            focus $hull.input    ;# FIXME: ???
+            return $hull
         }
 
         method OnDestroy {script} {
@@ -365,6 +460,7 @@ namespace eval tksh {
         }
 
         destructor {
+            #after 0 [list after idle [list puts "Destroyed: [self]"]]
             variable DestroyList
             if {[info exists DestroyList]} {
                 foreach script [lreverse $DestroyList] {
@@ -388,17 +484,35 @@ namespace eval tksh {
             my SetInput ""
         }
         method stdout {str} {
-            $win.output ins end $str stdout
-            $win.output see end
+            set move [expr {1.0 == [lindex [$hull.output yview] 1]}]
+            $hull.output ins end $str stdout
+            if {$move} {$hull.output see end} ;#else {my Flash $hull.output darkgrey}
         }
         method stderr {str} {
-            $win.output ins end $str stderr
-            $win.output see end
+            set move [expr {1.0 == [lindex [$hull.output yview] 1]}]
+            $hull.output ins end $str stderr
+            if {$move} {$hull.output see end} ;#else {my Flash $hull.output darkgrey}
+        }
+        method eof {{chan stdout}} {
+            $hull.output ins end \u03 $chan
+            if {$Options(-thread) ne ""} {
+                if {[thread::exists $Options(-thread)]} {
+                    return
+                }
+            } elseif {$Options(-interp) ne ""} {
+                if {[interp exists $Options(-interp)]} {
+                    return
+                }
+            }
+            set Options(-block) 2   ;# kinda a hack
+            my BlockInput
         }
 
         # silent eval:
         method eval {script} {
             lassign [my Evaluate $script] rc res opts
+            # XXX: bypasses -evalprefix.  Is that a good idea?
+            #set result [my Evaluate [concat $Options(-evalprefix) $script]]
             return -code $rc -options $opts $res
         }
 
@@ -407,13 +521,23 @@ namespace eval tksh {
             try {
                 return $Options($option)
             } on error {} {
-                throw [list TK LOOKUP OPTION $option] "unknown option \"$option\""
+                $hull cget $option
             }
         }
 
-        # runtime configuration is NOT SUPPORTED
-        # because most options only make sense at creation time
-        # and a means to mark options "readonly" is not yet available
+        # runtime configuration is NOT PROPERLY SUPPORTED
+        # - this needs OptSpec support for readonly items
+        method configure args {
+            foreach {option value} $args {
+                if {![info exists Options($option)]} {
+                    $hull configure $option $value
+                } elseif {$option ni {-block -evalprefix -resultvar}} {
+                    throw {TK READONLY OPTION} "Option \"$readonly\" is read-only!"
+                } else {
+                    my Configure [list $option $value]
+                }
+            }
+        }
 
         method Configure {optargs} {
             variable Options
@@ -452,6 +576,9 @@ namespace eval tksh {
                     "-eval" {
                         oo::objdefine [self] method Evaluate {script} "[list {*}$value] \$script"
                     }
+                    "-evalprefix"  - "-resultvar" {
+                        # just store it
+                    }
                     "-prompt" {
                         oo::objdefine [self] method Prompt {} $value
                     }
@@ -464,15 +591,6 @@ namespace eval tksh {
                     }
                 }
                 set Options($option) $value
-                if {$Options(-stdout) ne ""} {
-                    if {$Options(-thread) ne ""} {
-                        my PlumbThread $Options(-thread) $Options(-stdout)
-                    } elseif {$Options(-interp) ne ""} {
-                        my PlumbInterp $Options(-interp) $Options(-stdout)
-                    } else {
-                        my Plumb $Options(-stdout)
-                    }
-                }
             }
         }
 
@@ -491,39 +609,48 @@ namespace eval tksh {
                 error   {-foreground red -underline yes}
             }
 
-            $win.output configure {*}$textopts
-            $win.input configure  {*}$textopts
+            $hull.output configure {*}$textopts
+            $hull.input configure  {*}$textopts
 
             dict for {tag opts} [array get tagconfig] {
-                $win.output tag configure $tag {*}$opts ;#[dict merge $defaults $opts]
+                $hull.output tag configure $tag {*}$opts ;#[dict merge $defaults $opts]
             }
+            $hull.output tag bind error <Double-1> +[callback my HotError]
         }
 
         method SetupBinds {} {
-            bind $win.input <Control-Return> [callback my <Control-Return>]
-            bind $win.input <Return>         [callback my <Return>]
-            bind $win.input <Up>             [callback my <Up>]
-            bind $win.input <Down>           [callback my <Down>]
-            bind $win.input <Next>           [callback my <Next>]
-            bind $win.input <Prior>          [callback my <Prior>]
-            bind $win.input <Control-Up>     [callback my <Control-Up>]
-            bind $win.input <Control-Down>   [callback my <Control-Down>]
-            bind $win.input <Control-y>      {event generate %W <<Redo>>; break}    ;# FIXME: tkImprover does this better
+            bind $hull.input <Control-Return> [callback my <Control-Return>]
+            bind $hull.input <Return>         [callback my <Return>]
+            bind $hull.input <Up>             [callback my <Up>]
+            bind $hull.input <Down>           [callback my <Down>]
+            bind $hull.input <Next>           [callback my <Next>]
+            bind $hull.input <Prior>          [callback my <Prior>]
+            bind $hull.input <Control-Up>     [callback my <Control-Up>]
+            bind $hull.input <Control-Down>   [callback my <Control-Down>]
+            bind $hull.input <Control-y>      {event generate %W <<Redo>>; break}    ;# FIXME: tkImprover does this better
 
-            bind $win.output <Tab>           "[list ::focus $win.input]\nbreak"
-            bind $win.output <<ReadOnly>>    [callback my Flash $win.output]        ;# delegate to <<Alert>> event?
+            bind $hull.output <Tab>           "[list ::focus $hull.input]\nbreak"
+            bind $hull.output <<ReadOnly>>    [callback my Flash $hull.output]        ;# delegate to <<Alert>> event?
         }
 
-        method Flash {w} {
-            $w configure -background red
-            after 50 [list $w configure -background black]
+        method Flash {w {colour red}} {
+            set oldbg [$w cget -background]     ;# FIXME: use a tag to mimic a ttk style
+            $w configure -background $colour
+            after 50 [list $w configure -background $oldbg]
         }
 
         method <Return> {} {
             set script [my GetInput]
             # FIXME: check for meta-commands
-            if {![my IsComplete $script]} {
+            if {$script eq ""} {
+                after idle [callback my Flash $hull.input]
+                return -code break
+            } elseif {![my IsComplete $script]} {
                 return -code continue
+            } elseif {[my BossKey $script]} {
+                after idle [callback my BossExec $script]
+                my SetInput ""
+                return -code break
             } else {
                 after idle [callback my Execute $script]
                 my SetInput ""
@@ -541,39 +668,71 @@ namespace eval tksh {
             my SetInput [history next [my GetInput]]
         }
         method <Control-Down> {} {
-            focus $win.output
-            event generate $win.output <Down>
+        if {[string match *\n $s]} {
+            my <Return>
+        }
+            focus $hull.output
+            event generate $hull.output <Down>
         }
         method <Control-Up> {} {
-            focus $win.output
-            event generate $win.output <Up>
+            focus $hull.output
+            event generate $hull.output <Up>
         }
         method <Next> {} {
-            focus $win.output
-            event generate $win.output <Next>
+            focus $hull.output
+            event generate $hull.output <Next>
         }
         method <Prior> {} {
-            focus $win.output
-            event generate $win.output <Prior>
+            focus $hull.output
+            event generate $hull.output <Prior>
         }
 
         # input simplified accessors
         method Input {s} {
-            $win.input insert insert $s
+            # FIXME: check if blocked?
+            if {[regexp {^(.*)\n$} $s -> t]} {
+                $hull.input insert insert $t
+                focus $hull.input
+                event generate $hull.input <Return>
+            } else {
+                $hull.input insert insert $s
+            }
         }
         method SetInput {text} {
-            $win.input replace 1.0 end $text
+            $hull.input replace 1.0 end $text
         }
         method GetInput {} {
-            string range [$win.input get 1.0 end] 0 end-1   ;# strip newline!
+            string range [$hull.input get 1.0 end] 0 end-1   ;# strip newline!
+        }
+
+        # execute in "boss mode" - local escape
+        # FIXME: control this with an option, name it better and disable by default
+        method BossKey {script}     {
+            string match !* $script
+        }
+        method BossExec {script} {
+            $hull.output ins end [my Prompt] prompt
+            $hull.output ins end $script\n input
+            history add $script
+            set script [string range $script 1 end]
+            set result [list [catch {uplevel #0 $script} e o] $e $o]
+            after idle [list after 0 [callback my ShowResult {*}$result]]
         }
 
         # evaluate current input, also make a history entry
         method Execute {script} {
-            $win.output ins end [my Prompt] prompt
-            $win.output ins end $script\n input
+            $hull.output ins end [my Prompt] prompt
+            $hull.output ins end $script\n input
             history add $script
+
+            if {$Options(-resultvar) ne ":::"} {
+                set script "set [list $Options(-resultvar)] \[$script\]"
+            }
+            if {$Options(-evalprefix) ne ""} {
+                set script [list {*}$Options(-evalprefix) $script]
+            }
             set result [my Evaluate $script]
+
             # let the event loop catch up before showing the result (think IO)
             after idle [list after 0 [callback my ShowResult {*}$result]]
         }
@@ -585,13 +744,36 @@ namespace eval tksh {
             #   - trimming extremely long output
             if {$rc == 0} {
                 if {$res ne ""} {
-                    $win.output ins end $res result
+                    $hull.output ins end $res result
                 }
             } else {
-                $win.output ins end "\[$rc\]: $res" error
+                variable HotErrors
+                set tag "Err [info cmdcount]"
+                $hull.output ins end "\[$rc\]: $res" [list error $tag]
+                dict set HotErrors $tag $opts
+                my VacuumErrors
             }
             # FIXME: store last command result
-            $win.output see end
+            $hull.output see end
+        }
+
+        method HotError {} {
+            variable HotErrors
+            set tags [$hull.output tag names insert]
+            set tag [lsearch -inline $tags "Err *"]
+            my stderr [dict get $HotErrors $tag]
+        }
+        method VacuumErrors {} {
+            variable HotErrors
+            set errtags [lmap tag [$hull.output tag names] {
+                if {![string match "Err *" $tag]} continue
+                if {[$hull.output tag ranges $tag] eq ""} {
+                    $hull.output tag delete $tag
+                    dict unset HotErrors $tag
+                    continue
+                }
+                set tag
+            }]
         }
 
         # configurable items - see [method Configure]:
@@ -619,8 +801,9 @@ namespace eval tksh {
                 finally [callback my UnblockInput]
             }
 
-            set ID [history size]
-            set resultvar [namespace current]::evalresult($ID)
+            variable EvalID
+            incr EvalID
+            set resultvar [namespace current]::evalresult($EvalID)
 
             set script [list {*}$Try $script]
 
@@ -640,16 +823,18 @@ namespace eval tksh {
             variable BlockDepth
             incr BlockDepth
             if {$Options(-block) == 2} {
-                $win.input configure -background gray -state disabled
+                ;# FIXME: use a tag to mimic a ttk style
+                $hull.input configure -background gray -state disabled
             } else {
-                $win.input configure -background gray
+                $hull.input configure -background gray
             }
         }
         method UnblockInput {} {
             variable BlockDepth
             incr BlockDepth -1
             if {$BlockDepth == 0} {
-                $win.input configure -background black -state normal
+                ;# FIXME: use a tag to mimic a ttk style
+                $hull.input configure -background black -state normal
             }
         }
 
@@ -668,8 +853,8 @@ namespace eval tksh {
         method PlumbInterp {int {kind tee}} {
             # set up aliases in the interp:
             #   :Stdout :Stderr - commands which take a string to write
-            interp alias $int :Stdout {} $win stdout
-            interp alias $int :Stderr {} $win stderr
+            interp alias $int :Stdout {} [self] stdout
+            interp alias $int :Stderr {} [self] stderr
             if {$kind eq "tee"} {
                 set script [transchans::script TeeCmd]
             } elseif {$kind eq "redir"} {
@@ -702,8 +887,14 @@ namespace eval tksh {
                     chan push $chan [list StdRedir $redir]
                 }} $basechan $w]
                 chan event $r readable [list apply {{win r basechan} {
-                    $win $basechan [read $r]
-                }} $win $r $basechan]
+                    set data [read $r]
+                    if {$data ne ""} {
+                        $win $basechan $data
+                    } elseif {[eof $r]} {
+                        close $r
+                        $win eof $basechan
+                    }
+                }} $hull $r $basechan]
 
                 my OnDestroy [list chan close $r]   ;# NOTE reverse order
                 my OnDestroy [list chan event $r readable ""]
@@ -721,7 +912,11 @@ namespace eval tksh {
     }
 
     copyBindtags Text ConsoleOutput.Text
-    bind ConsoleOutput.Text <Key> {Console.Output.Key %W %K}
+
+    bind ConsoleOutput.Text <Key> [namespace code {Console.Output.Key %W %K}]
+
+    # need to make specific binds too to get priority
+    bind ConsoleOutput.Text <Return> [namespace code {Console.Output.Key %W %K}]
 
     proc Console.Output.Key {W K args} {
         set input [winfo parent $W].input
@@ -840,7 +1035,11 @@ namespace eval tksh {
             proc finalize   {chan cmd x}       { }
             proc write      {chan cmd x data}  {
                 set enc [chan configure $chan -encoding]
-                lappend cmd [encoding convertfrom $enc $data]
+                if {$enc ne "binary"} {
+                    lappend cmd [encoding convertfrom $enc $data]
+                } else {
+                    lappend cmd $data
+                }
                 uplevel #0 $cmd
                 return $data
             }
@@ -951,6 +1150,8 @@ if {[info exists ::argv0] && $::argv0 eq [info script]} {
 
     console .console -thread % -stdout tee
     set i [.console cget -thread]
+
+    #.console buttons add "&Packages" [::tksh::callback .console input "package names\n"]
 
     .console eval { ;# {} - fix syntax
         lappend ::argv              ;# these make threads much happier
