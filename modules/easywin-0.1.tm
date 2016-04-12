@@ -70,8 +70,6 @@ package require Tcl         8.5
 package require Tk          8.5
 package require snit        2.2
 
-package provide easywin     0.1
-
 snit::widgetadaptor easywin {
     option -title       -default "" -configuremethod ChangeTitle
     option -toolbar     -default 0  -configuremethod ChangeComponent
