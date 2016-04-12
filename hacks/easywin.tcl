@@ -1,6 +1,6 @@
 # from http://wiki.tcl.tk/20619 revision 10 2015-12-01
 if 0 {
-    [NEM] 2008-01-11: Here is a little (ish) package that wraps up [toplevel], [wm], [winfo] 
+    [NEM] 2008-01-11: Here is a little (ish) package that wraps up [toplevel], [wm], [winfo]
     and [MacWindowStyle] into a single mega-widget using [snit]. The window is actually somewhat
     more than just a toplevel, as it incorporates a toolbar ([ttk::frame]), menubar and a status/
     progressbar, as these are frequently needed items (at least for the apps I like to develop).
@@ -102,7 +102,7 @@ snit::widgetadaptor easywin {
     component menu      -public menu
 
     component mainframe
-    component toolbar  
+    component toolbar
 
     delegate option * to hull
     delegate method * to mainframe
@@ -110,11 +110,11 @@ snit::widgetadaptor easywin {
     variable hidden [dict create]
 
     typevariable wmoptions
-    typeconstructor { 
-        lappend ::snit::hulltypes window glib::window 
-        set wmoptions(aqua)     {-fullscreen -topmost -modified -titlepath 
+    typeconstructor {
+        lappend ::snit::hulltypes window glib::window
+        set wmoptions(aqua)     {-fullscreen -topmost -modified -titlepath
                                  -alpha -notify}
-        set wmoptions(win32)    {-fullscreen -alpha -toolwindow -topmost 
+        set wmoptions(win32)    {-fullscreen -alpha -toolwindow -topmost
                                  -transparentcolor -disabled}
         set wmoptions(x11)      {-fullscreen -topmost -zoomed}
     }
@@ -129,7 +129,7 @@ snit::widgetadaptor easywin {
                 set $op [lindex $args [expr {$idx+1}]]
                 set args [lreplace $args $idx [incr idx]]
             }
-        } 
+        }
 
         if {[tk windowingsystem] eq "aqua"} {
             set tstyle Toolbar
@@ -308,7 +308,7 @@ snit::widgetadaptor easywin {
                     "closing?"] \
                 -type yesnocancel -default cancel]
             if {$ans eq "cancel"} { return 0 }
-            if {$ans eq "yes"} { 
+            if {$ans eq "yes"} {
                 if {[invoke #0 $command $self] == 1} {
                     # Save command aborted close
                     return 0
@@ -553,7 +553,7 @@ if {[info exists ::argv0] && $::argv0 eq [info script]} {
 
     proc file:close win { $win close }
 
-    proc file:quit win { 
+    proc file:quit win {
         global edcount
         if {[$win close]} { incr edcount -1 }
         if {$edcount <= 0} { exit }
