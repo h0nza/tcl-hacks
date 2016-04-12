@@ -8,39 +8,51 @@ if 0 {
     possible, while keeping the interface platform-independent. Options that only make sense on
     a certain platform are ignored on others, etc.
 
-    easywin .ew -option value -option value ...
+        easywin .ew -option value -option value ...
 
-    ***Options***
+    OPTIONS:
+
     A rather large number of options are supported, and probably more will be added.
-    -title:   Set the title of the window (i.e. [wm title]).
-    -toolbar:   Boolean, indicates whether to display the toolbar or not.
-    -statusbar:   Whether to display the statusbar (and progressbar).
-    -document:   Use this to set the full path name of the file currently being viewed in the window (if it is being used in that way). On Mac this will set the -titlepath so that an appropriate proxy icon is displayed (very cool bit of polish).
-    -modified:   Indicates whether the contents of the window have been modified since last save.
+
+        -title:         Set the title of the window (i.e. [wm title]).
+        -toolbar:       Boolean, indicates whether to display the toolbar or not.
+        -statusbar:     Whether to display the statusbar (and progressbar).
+        -document:      Use this to set the full path name of the file currently being viewed in the window (if it is being used in that way).
+                        On Mac this will set the -titlepath so that an appropriate proxy icon is displayed (very cool bit of polish).
+        -modified:      Indicates whether the contents of the window have been modified since last save.
+
     Lots of other options which related to various [wm attributes] options for different platforms (and are no-ops on other platforms).
-    -windowclass:   Sets the window class on TkAqua (see [MacWindowStyle])
-    -attributes:   Sets the window attributes on TkAqua (see [MacWindowStyle])
-    -savecommand:   Sets a command to invoke to save the current window contents (see below).
 
-    ***Methods***
+        -windowclass:   Sets the window class on TkAqua (see [MacWindowStyle])
+        -attributes:    Sets the window attributes on TkAqua (see [MacWindowStyle])
+        -savecommand:   Sets a command to invoke to save the current window contents (see below).
 
-    $win status ?msg?:   Get or set the current status message displayed in the statusbar.
-    $win progress total done:   Set the current progress value. This will display a progress bar in the statusbar if one is not already visible. If total==done then the progressbar is hidden again.
-    $win hide ?component?/show ?component?/hidden ?component/toggle ?component?:   Hide or show a particular component of the window or check the status of a component. Valid component names are: self (i.e., the entire window), statusbar, toolbar. Defaults to self.
-    $win toolbar:   Returns the tk command of the toolbar frame widget, so you can add items to it.
+    METHODS:
+
+        $win status ?msg?:          Get or set the current status message displayed in the statusbar.
+        $win progress total done:   Set the current progress value. 
+            This will display a progress bar in the statusbar if one is not already visible.
+            If total==done then the progressbar is hidden again.
+        $win hide ?component?/show ?component?/hidden ?component/toggle ?component?:   Hide or show a particular component of the window or check the status of a component.
+            Valid component names are:
+                self (ie, the entire window) (default)
+                statusbar
+                toolbar
+        $win toolbar:               Returns the tk command of the toolbar frame widget, so you can add items to it.
 
     In addition, direct access to the underlying widgets is provided through the commands
 
-    $win statusbar ...:   
-    $win progressbar ...:   
-    $win menu ...:   
+        $win statusbar ...:   
+        $win progressbar ...:   
+        $win menu ...:   
 
     So for example you can do
-    $win menu add cascade ...
+        $win menu add cascade ...
 
     Various other methods exist: essentially the whole of [wm] and [winfo] exist as methods on the window.
 
-    ***Prompt to save file***
+    PROMPT TO SAVE FILE:
+
     If you supply a ''-savecommand'' option then the widget will check the ''-modified'' flag when
     a user attempts to close the window. If the contents have been modified then a dialog will be
     displayed asking if the user wants to save first. If they click yes, then the -savecommand is
@@ -428,6 +440,7 @@ snit::widgetadaptor easywin {
     }
 }
 
+#  Demo:
 if {[info exists ::argv0] && $::argv0 eq [info script]} {
     # editor.tcl --
     #
