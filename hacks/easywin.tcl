@@ -309,7 +309,7 @@ snit::widgetadaptor easywin {
                 -type yesnocancel -default cancel]
             if {$ans eq "cancel"} { return 0 }
             if {$ans eq "yes"} {
-                if {[invoke #0 $command $self] == 1} {
+                if {[uplevel #0 $command $self] == 1} {
                     # Save command aborted close
                     return 0
                 }
