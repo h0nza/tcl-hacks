@@ -1118,13 +1118,13 @@ namespace eval tksh {
         if {$min > 0.0 || $max < 1.0} {
             set sy [ttk::scrollbar $w.sy -orient vert -command [list $w yview]]
             pack $sy -in $w -side right -fill y
-            $w configure -yscrollcommand [list autoscrollCmd2 $w $sy]
+            $w configure -yscrollcommand [callback autoscrollCmd2 $w $sy]
         }
     }
     proc autoscrollCmd2 {w sy min max} {
         if {$min <= 0.0 && $max >= 1.0} {
             destroy $sy
-            $w configure -yscrollcommand [list autoscrollCmd $w]
+            $w configure -yscrollcommand [callback autoscrollCmd $w]
         } else {
             tailcall $sy set $min $max
         }
