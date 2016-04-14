@@ -155,6 +155,7 @@ namespace eval record {
     #   {{Hello, %s!\n} world WORLD}
     #
     proc lsub script {              ;# [sl] from the wiki
+        # FIXME: this breaks badly on semicolons
         set res {}
         set parts {}
         foreach part [split $script \n] {
@@ -188,6 +189,7 @@ namespace eval record {
     # This proc is a one-token change from lsub, but provided in full for
     # easy bytecoding.
     proc llsub script {              ;# tiny derivation from [lsub]
+        # FIXME: this breaks badly on semicolons
         set res {}
         set parts {}
         foreach part [split $script \n] {
