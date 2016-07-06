@@ -279,6 +279,60 @@ namespace eval inet {
         }
     }
 
+    service proxy/8080 {
+
+        chan configure $chan -translation crlf  -encoding binary
+
+        # read first line
+        gets $chan request
+
+        # read until \n\n
+        set preamble ""
+        while {[gets $chan line] > 0} {
+            append preamble $line\n
+        }
+        # note $preamble doesn't include the extra \n
+
+        # parse request line
+        if {![regexp {^([A-Z]+) (.*) (HTTP/.*)$} $request -> verb dest httpver]} {
+            throw {PROXY BAD_REQUEST} "Bad request: $request"
+        }
+
+        if {[regexp {^(\w+)://([^:/ ]+)(?::(\d+))?(.*)$} $dest -> scheme host port path]} {
+        } elseif {[regexp {^([^:/ ]+)(?::(\d+))?$} $dest -> host port]} {
+        } else {
+            throw {PROXY BAD_URL} "Bad URL: $dest"
+        }
+
+        if {$port eq ""} {set port 80}
+
+        # open outgoing conn
+        set upchan [socket -async $host $port]  ;# -async ensures we don't block other clients.
+                                                ;# But beware:  DNS lookup blocks!
+        chan configure $upchan -blocking 0 -translation crlf -buffering none   -encoding binary
+
+        # send headers
+        if {$verb ne "CONNECT"} {
+            puts $upchan $request
+            puts $upchan $preamble  ;# extra newline is wanted here!
+        }
+
+        # revert to binary mode
+        chan configure $chan   -buffering none -translation binary -encoding binary
+        chan configure $upchan -buffering none -translation binary -encoding binary
+
+        # fcopy
+        chan copy $chan $upchan -command [info coroutine]
+        chan copy $upchan $chan -command [info coroutine]
+        foreach _ {1 2} {     ;# twice to catch both events
+            lassign [yieldm] nbytes err
+            if {[eof $upchan] || [eof $chan]} {
+                break
+            }
+        }
+        catch {close $upchan}   ;# make sure this gets closed
+    }
+
 }
 
 ::inet::listen 10000
