@@ -44,7 +44,6 @@
 #   * dustmote for http?
 #
 #  FIXME:
-#    * ipv6 hostnames don't make good command/coro names!
 #    * proxy/8080 doesn't work well with CONNECT ..?
 #
 package require coroutine
@@ -71,7 +70,9 @@ namespace eval inet {
     # accept and dispatch a new connection
     proc accept {handler chan host port} {
         chan configure $chan -blocking 0 -buffering line -translation auto
-        coroutine sockets::[namespace tail $handler]:$host:$port $handler $chan
+        # :: (as in ipv6 addresses) is not permissible in command names, except as a namespace separator
+        set coname [namespace tail $handler]:[string map {: _} $host]:$port
+        coroutine sockets::$coname $handler $chan
     }
 
     # set up all listening ports
