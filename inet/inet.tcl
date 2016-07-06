@@ -20,6 +20,7 @@
 #   ident/113   rfc1413
 #   finger/79   rfc1288, 4146
 #   pwdgen/129  rfc972
+#   proxy/8080  rfc2616(ish)
 #
 # Potentially interesting to add:
 #   telnet/23   (illustrate handling telnet \xff codes in a transchan)
@@ -41,7 +42,10 @@
 #   * telnet?  With a stubborn client that WONT?
 #     * feeds into serial-over-tcp, which is useful
 #   * dustmote for http?
-#   * http proxy?
+#
+#  FIXME:
+#    * ipv6 hostnames don't make good command/coro names!
+#    * proxy/8080 doesn't work well with CONNECT ..?
 #
 package require coroutine
 
