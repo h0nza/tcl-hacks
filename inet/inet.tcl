@@ -305,6 +305,7 @@ namespace eval inet {
 
         if {[regexp {^(\w+)://([^:/ ]+)(?::(\d+))?(.*)$} $dest -> scheme host port path]} {
         } elseif {[regexp {^([^:/ ]+)(?::(\d+))?$} $dest -> host port]} {
+        } elseif {[regexp {^\[([^\]/ ]+)\](?::(\d+))?$} $dest -> host port]} {
         } else {
             throw {PROXY BAD_URL} "Bad URL: $dest"
         }
