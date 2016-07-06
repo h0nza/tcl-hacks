@@ -303,9 +303,14 @@ namespace eval inet {
             throw {PROXY BAD_REQUEST} "Bad request: $request"
         }
 
-        if {[regexp {^(\w+)://([^:/ ]+)(?::(\d+))?(.*)$} $dest -> scheme host port path]} {
+        if {[regexp {^(\w+)://\[([^\]/ ]+)\](?::(\d+))?(.*)$} $dest -> scheme host port path]} {
+            # IPv6 URL
+        } elseif {[regexp {^(\w+)://([^:/ ]+)(?::(\d+))?(.*)$} $dest -> scheme host port path]} {
+            # normal URL
         } elseif {[regexp {^([^:/ ]+)(?::(\d+))?$} $dest -> host port]} {
+            # CONNECT-style host:port
         } elseif {[regexp {^\[([^\]/ ]+)\](?::(\d+))?$} $dest -> host port]} {
+            # CONNECT-style host:port IPv6
         } else {
             throw {PROXY BAD_URL} "Bad URL: $dest"
         }
