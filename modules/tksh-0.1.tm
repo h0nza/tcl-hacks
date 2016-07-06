@@ -148,10 +148,32 @@ namespace eval tksh {
                 -minheight  {-minheight     minHeight   MinHeight   1       {string is integer}}
             }
             # FIXME: add delegates
+            #
+            #
+            # Each option is identified by name (-switch)
+            # and must have:
+            #   -resource StudlyCaps
+            # and may have:
+            #   -delegate           <component name>
+            #   -configuremethod    <mymethod ?arg ..?>
+            #   -cgetmethod         <mymethod ?arg ..?>
+            #   -verifier           <cmdprefix returning bool>
+            #   -default            <value>
+            #   -readonly           <bool>
+            #     option can only be set at construction time
+            #
+            # Wildcard delegation:
+            #   option * -delegate hull
+            #     * any unrecognised option (cget/configure)
+            #       will be given to the hull
+            #     * getting all configuration will splice
+            #       in (non-colliding) * from the hull
+            #   Otherwise this option is ignored.
         }
 
         # utility for configuration: separate options into hull (passthrough) and local
         method SplitOpts {optargs} {    ;# lassign [my SplitOpts] hullopts myopts
+            # delegated options are local for this purpose
             set myargs {}
             set spec [my OptSpec]
             set hullargs [dict map {option value} $optargs {
@@ -167,6 +189,13 @@ namespace eval tksh {
 
         # configuration private interface:
         method Configure {optargs} {
+            # needs to handle:
+            #   * readonly options (constructor time only)
+            #   * delegation
+            #   * hull options
+            #   * verify
+            #   * configuremethod
+            #   * maintaining array
             dict for {option value} $optargs {
                 my Verify $option $value
             }
@@ -181,9 +210,20 @@ namespace eval tksh {
             }
         }
         method Cget {option} {
+            # return the options's value: must handle:
+            #   * delegation
+            #   * hull options
+            #   * cgetmethod
+            #   * maintaining array
             return $Options($option)
         }
         method CgetSpec {args} {
+            # returns Tk optspec list:
+            #  {-switch resName ResClass defValue value}
+            # must handle:
+            #   * delegation
+            #   * hull options
+            #   * cgetmethod
             if {$args eq ""} {
                 set speclist [$hull configure]
                 foreach {option spec} [my OptSpec] {
@@ -285,6 +325,7 @@ namespace eval tksh {
             }
         }
     }
+
 
     # 
     # A simple vertically-oriented button box with convenient methods for adding buttons
@@ -1116,7 +1157,7 @@ namespace eval tksh {
 
     proc autoscrollCmd {w min max} {
         if {$min > 0.0 || $max < 1.0} {
-            set sy [ttk::scrollbar $w.sy -orient vert -command [list $w yview]]
+            set sy [ttk::scrollbar $w.sy -orient vert -command [callback $w yview]]
             pack $sy -in $w -side right -fill y
             $w configure -yscrollcommand [callback autoscrollCmd2 $w $sy]
         }
