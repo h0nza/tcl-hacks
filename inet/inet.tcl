@@ -8,19 +8,20 @@
 # See http://networksorcery.com/enp/protocol/ip/ports00000.htm for assignments and references.
 #
 # Currently represented:
-#   tcpmux/1    rfc1078
-#   echo/7      rfc862
-#   discard/9   rfc863
-#   systat/11   rfc866
-#   daytime/13  rfc867
-#   netstat/15
-#   qotd/17     rfc865
-#   chargen/19  rfc864
-#   time/37     rfc868
-#   ident/113   rfc1413
-#   finger/79   rfc1288, 4146
-#   pwdgen/129  rfc972
-#   proxy/8080  rfc2616(ish)
+#   1     tcpmux   rfc1078
+#   7     echo     rfc862
+#   9     discard  rfc863
+#   11    systat   rfc866
+#   13    daytime  rfc867
+#   15    netstat  rfc866?
+#   17    qotd     rfc865
+#   19    chargen  rfc864
+#   37    time     rfc868
+#   43    whois    rfc3912
+#   79    finger   rfc1288, 4146
+#   113   ident    rfc1413
+#   129   pwdgen   rfc972
+#   8080  proxy    rfc2616(ish)
 #
 # Potentially interesting to add:
 #   telnet/23   (illustrate handling telnet \xff codes in a transchan)
@@ -41,7 +42,7 @@
 #   * make qotd more efficient by caching, or by using fortune.dat
 #   * telnet?  With a stubborn client that WONT?
 #     * feeds into serial-over-tcp, which is useful
-#   * dustmote for http?
+#   * how simple http can get away with? dustmote?
 #
 
 namespace eval inet {
