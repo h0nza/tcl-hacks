@@ -43,9 +43,6 @@
 #     * feeds into serial-over-tcp, which is useful
 #   * dustmote for http?
 #
-#  FIXME:
-#    * proxy/8080 doesn't work well with CONNECT ..?
-#
 package require coroutine
 
 namespace eval inet {
@@ -286,7 +283,7 @@ namespace eval inet {
 
     service proxy/8080 {
 
-        chan configure $chan -translation crlf  -encoding binary
+        chan configure $chan -translation crlf  -encoding iso8859-1
 
         # read first line
         gets $chan request
@@ -320,10 +317,22 @@ namespace eval inet {
         # open outgoing conn
         set upchan [socket -async $host $port]  ;# -async ensures we don't block other clients.
                                                 ;# But beware:  DNS lookup blocks!
-        chan configure $upchan -blocking 0 -translation crlf -buffering none   -encoding binary
 
-        # send headers
-        if {$verb ne "CONNECT"} {
+# FIXME: finally close
+
+# FIXME: may need this dance before [chan copy] in case of connection failure?
+#        yieldto chan event $upchan writable [info coroutine]
+#        chan event $upchan writable ""
+# FIXME: should probably return something sensible to the client in case of connection failure
+
+        chan configure $upchan -blocking 0 -translation crlf -buffering none   -encoding iso8859-1
+
+        if {$verb eq "CONNECT"} {
+            # for CONNECT, we need to synthesise a response:
+            puts $chan "$httpver 200 OK"
+            puts $chan ""
+        } else {
+            # else, forward the request headers:
             puts $upchan $request
             puts $upchan $preamble  ;# extra newline is wanted here!
         }
