@@ -43,7 +43,6 @@
 #     * feeds into serial-over-tcp, which is useful
 #   * dustmote for http?
 #
-package require coroutine
 
 namespace eval inet {
     variable BASEPORT 0         ;# offset from declared port
@@ -57,9 +56,27 @@ namespace eval inet {
         tailcall trace add variable :#finally#: unset [list apply [list args $script]]
     }
 
-    # coroutine-friendly IO proxies:
-    proc gets args {tailcall coroutine::util gets {*}$args}
-    proc read args {tailcall coroutine::util read {*}$args}
+    # coroutine-friendly IO proxies - like coroutine::util:
+    proc gets {chan args} {
+        if {![chan configure $chan -blocking]} {
+            set was [chan event $chan readable]
+            chan event $chan readable [list catch [info coroutine]]
+            yield
+            chan event $chan readable $was
+        }
+        tailcall ::gets $chan {*}$args
+    }
+
+    proc read {chan args} {
+        if {![chan configure $chan -blocking]} {
+            set was [chan event $chan readable]
+            chan event $chan readable [list catch [info coroutine]]
+            yield
+            chan event $chan readable $was
+        }
+        tailcall ::read $chan {*}$args
+    }
+
     proc after args {   ;# needs to wrap with [catch] in case the socket is killed while we're waiting
         if {[llength $args] == 1} {
             ::after {*}$args [list catch [info coroutine]]
@@ -154,7 +171,7 @@ namespace eval inet {
     service discard/9 {
         while {![eof $chan]} {
             # discard result
-            coroutine::util read $chan
+            read $chan
         }
     }
 
@@ -166,10 +183,10 @@ namespace eval inet {
         set i 0
         while {![eof $chan]} {
             while {[chan pending output $chan]} {
-                coroutine::util after idle
+                after idle
             }
             puts $chan [string range $chargen $i $i+71]
-            coroutine::util after idle      ;# make sure other clients get serviced!
+            after idle      ;# make sure other clients get serviced!
             incr i
             if {$i >= $max} {incr i -$max}
         }
