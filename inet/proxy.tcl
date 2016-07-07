@@ -1,5 +1,5 @@
-package require coroutine
-
+#!/usr/bin/env tclsh8.6
+#
 socket -server {go accept} 8080
 
 proc yieldm args {yieldto string cat {*}$args}
@@ -19,12 +19,15 @@ proc accept {chan chost cport} {
 
     finally [list close $chan]
 
-    coroutine::util gets $chan request
+    chan even $chan readable [info coroutine]
+    yieldm
+    gets $chan request
 
     set preamble ""
-    while {[coroutine::util gets $chan line] > 0} {
+    while {[yield; gets $chan line] > 0} {
         append preamble $line\n
     }
+    chan even $chan readable ""
     if {![regexp {^([A-Z]+) (.*) (HTTP/.*)$} $request -> verb dest httpver]} {
         throw {PROXY BAD_REQUEST} "Bad request: $request"
     }
