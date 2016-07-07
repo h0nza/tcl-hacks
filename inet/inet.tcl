@@ -110,14 +110,13 @@ namespace eval inet {
     proc service {name body} {
         set body [format {
             puts "Start [info coroutine]"
+            finally [list catch [list close $chan]]
             try {
                 %s
             } on error {e o} {
-                puts "Error on $chan: $e"
-            } finally {
-                catch {close $chan}
+                puts "Error in [info coroutine]: $e"
             }
-            puts "Close [info coroutine]"
+            puts "End [info coroutine]"
         } $body]
         tailcall proc $name {chan} $body
     }
@@ -272,7 +271,7 @@ namespace eval inet {
         }
         # FIXME: this can continue to accept requests, timing out after 60-180s idle
     }
-    
+
     service pwdgen/129 { ;# rfc972
         package require base64
         for {set i 0} {$i < 6} {incr i} {
@@ -303,6 +302,7 @@ namespace eval inet {
         }
     }
 
+# a web proxy is a very nice thing to have, and not really much more complex:
     service proxy/8080 {
 
         chan configure $chan -translation crlf  -encoding iso8859-1
@@ -340,8 +340,13 @@ namespace eval inet {
         set upchan [socket -async $host $port]  ;# -async ensures we don't block other clients.
                                                 ;# But beware:  DNS lookup blocks!
 
+        chan configure $upchan -blocking 0 -translation crlf -buffering none   -encoding iso8859-1
+
+        # wait till we're connected:
         yieldto chan event $upchan writable [info coroutine]
         chan event $upchan writable ""
+
+        # .. or did connection fail?
         set err [chan configure $upchan -error]
         if {$err ne ""} {
             # FIXME: smarter responses
@@ -354,8 +359,6 @@ namespace eval inet {
         }
         finally [list close $upchan]
 
-        chan configure $upchan -blocking 0 -translation crlf -buffering none   -encoding iso8859-1
-
         if {$verb eq "CONNECT"} {
             # for CONNECT, we need to synthesise a response:
             puts $chan "$httpver 200 OK"
@@ -366,15 +369,15 @@ namespace eval inet {
             puts $upchan $preamble  ;# extra newline is wanted here!
         }
 
-        # revert to binary mode
+        # revert to binary mode, and hand over to [chan copy]:
         chan configure $chan   -buffering none -translation binary -encoding binary
         chan configure $upchan -buffering none -translation binary -encoding binary
-
-        # fcopy
         chan copy $chan $upchan -command [info coroutine]
         chan copy $upchan $chan -command [info coroutine]
         lassign [yieldm] nbytes err     ;# twice to catch both events
-        lassign [yieldm] nbytes err     ;# twice to catch both events
+        lassign [yieldm] nbytes err
+
+        # and we're done!  Cleanup is automatic.
     }
 
 }
