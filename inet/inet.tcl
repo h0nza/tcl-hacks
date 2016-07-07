@@ -52,6 +52,11 @@ namespace eval inet {
     # our coros need to accept multiple arguments (tcpmux - for chan copy)
     proc yieldm args {yieldto string cat {*}$args}
 
+    # this is handy for cleanup
+    proc finally {script} {
+        tailcall trace add variable :#finally#: unset [list apply [list args $script]]
+    }
+
     # coroutine-friendly IO proxies:
     proc gets args {tailcall coroutine::util gets {*}$args}
     proc read args {tailcall coroutine::util read {*}$args}
@@ -318,12 +323,19 @@ namespace eval inet {
         set upchan [socket -async $host $port]  ;# -async ensures we don't block other clients.
                                                 ;# But beware:  DNS lookup blocks!
 
-# FIXME: finally close
-
-# FIXME: may need this dance before [chan copy] in case of connection failure?
-#        yieldto chan event $upchan writable [info coroutine]
-#        chan event $upchan writable ""
-# FIXME: should probably return something sensible to the client in case of connection failure
+        yieldto chan event $upchan writable [info coroutine]
+        chan event $upchan writable ""
+        set err [chan configure $upchan -error]
+        if {$err ne ""} {
+            # FIXME: smarter responses
+            puts $chan "$httpver 502 Bad Gateway"
+            puts $chan "Content-type: text/plain"
+            puts $chan ""
+            puts $chan "Error connecting to $host port $port:"
+            puts $chan "  $err"
+            return
+        }
+        finally [list close $upchan]
 
         chan configure $upchan -blocking 0 -translation crlf -buffering none   -encoding iso8859-1
 
@@ -344,13 +356,8 @@ namespace eval inet {
         # fcopy
         chan copy $chan $upchan -command [info coroutine]
         chan copy $upchan $chan -command [info coroutine]
-        foreach _ {1 2} {     ;# twice to catch both events
-            lassign [yieldm] nbytes err
-            if {[eof $upchan] || [eof $chan]} {
-                break
-            }
-        }
-        catch {close $upchan}   ;# make sure this gets closed
+        lassign [yieldm] nbytes err     ;# twice to catch both events
+        lassign [yieldm] nbytes err     ;# twice to catch both events
     }
 
 }
