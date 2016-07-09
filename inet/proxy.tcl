@@ -62,6 +62,36 @@ proc serve_http {chan scheme host port path} {
 
 namespace eval filter {
     # TODO: a bit of sugar
+    proc deproxify {_request _headers} {    ;# turn request into path-only and create Host: header
+                                            ;# most servers don't actually care, but rfc2616 5.1.2 MUST
+                                            ;# and paste.tclers.tk cares
+        upvar 1 $_request request
+        upvar 1 $_headers headers
+
+        # FIXME: code duplication
+        if {![regexp {^([A-Z]+) (.*) (HTTP/.*)$} $request -> verb dest httpver]} {
+            return
+        }
+        if {[regexp {^(\w+)://\[([^\]/ ]+)\](?::(\d+))?(.*)$} $dest -> scheme host port path]} {
+            # IPv6 URL
+        } elseif {[regexp {^(\w+)://([^:/ ]+)(?::(\d+))?(.*)$} $dest -> scheme host port path]} {
+            # normal URL
+        } else {
+            return  ;# nothing I can handle here!
+        }
+        if {$scheme ne "http"} return   ;# nothing I can handle here!
+        if {$port eq 80} {set port ""}
+        if {[regexp -line {^Host: (.*)(?::(.*))$} $headers -> h_host h_port]} {
+            if {$h_port eq 80} {set h_port ""}
+            if {$h_host ne $host || $h_port ne $port} {
+                throw {PROXY ILLEGAL HEADER} "Illegal host header! $h_host:$h_port"
+            }
+            regsub -line {^Host: (.*)\n} $headers "" headers
+        }
+        set request "$verb $path $httpver"
+        set headers "Host: $host:$port\n$headers"
+    }
+
     proc basicauth {_request _headers} {
         upvar 1 $_request request
         upvar 1 $_headers headers
@@ -125,6 +155,7 @@ proc accept {chan chost cport} {
     # divine the port, if blank
     if {$port eq ""} {
         try {
+            # wait, I only speak http!
             set default_ports {http 80 https 443 ftp 21}    ;# this should come from a smarter registry, but here's enough
             set port [dict get $default_ports $scheme]
         } on error {} {
@@ -145,6 +176,7 @@ proc accept {chan chost cport} {
     #  [ ] filter request body
     #  [ ] filter response
     try {
+        filter::deproxify request preamble
         filter::basicauth request preamble
     } on return {response opts} {
         puts -nonewline $chan $response
