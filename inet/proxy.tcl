@@ -150,20 +150,20 @@ proc accept {chan chost cport} {
         puts $upchan $preamble  ;# extra newline is wanted here!
     }
 
-    # fortunately, a proxy doesn't have to care about "Connection: keep-alive"
-
     chan configure $chan   -buffering none -translation binary
     chan configure $upchan -buffering none -translation binary
     chan copy $chan $upchan -command [info coroutine]
     chan copy $upchan $chan -command [info coroutine]
+
+    # wait for one chan to close:
     yieldm
-    # handle client abandoning keepalive
-    if {[chan eof $chan]} {
-        log "$chan: Client disconnected"
-        close $upchan
-        return
+    if {[chan eof $chan]} {     ;# this would be the wrong test if TCP supported tip#332 !
+        log "$chan: Client abandoned keepalive"
+        #close $upchan  ;# [finally] will do this for us
+    } else {
+        # wait until we're done sending to the client
+        yieldm
     }
-    yieldm
     log "$chan: Done"
 }
 
