@@ -29,6 +29,15 @@ namespace eval util {
     proc log {args} {
         puts stderr "[timestamp] $args"
     }
+
+    proc dedent {text} {
+        set text [string trimleft $text \n]
+        set text [string trimright $text \ ]
+        regexp -line {^ +} $text space
+        log dedenting $space
+        regsub -line -all ^$space $text ""
+    }
+
     namespace export *
 }
 namespace import util::*
@@ -52,10 +61,17 @@ proc serve_http {chan scheme host port path} {
 }
 
 namespace eval filter {
+    # TODO: a bit of sugar
     proc basicauth {_request _headers} {
         upvar 1 $_request request
         upvar 1 $_headers headers
         if {![regexp -line {^Proxy-Authorization: Basic (.*)$} $headers -> creds]} {
+            return -code return [dedent {
+                HTTP/1.1 407 Proxy Authentication Required
+                Proxy-Authenticate: Basic: realm="Tiny Proxy"
+                Connection: close
+                
+            }]
             return -code return "HTTP/1.1 407 Proxy Authentication Required\nProxy-Authenticate: Basic: realm=\"Tiny Proxy\"\nConnection: close\n\n"
         }
         set creds [binary decode base64 $creds]
@@ -123,12 +139,11 @@ proc accept {chan chost cport} {
         return ;# NOTE: cannot tailcall here, because that will trigger [finally] and close the channel!
     }
 
-    # TODO: apply filters!
-    #
     # Filters must be able to:
-    #  - rewrite parts of the request
-    #  - provide a full response
-    #  - rewrite parts of the response
+    #  [x] alter the request        (pass by reference)
+    #  [x] provide a full response  (-code return)
+    #  [ ] filter request body
+    #  [ ] filter response
     try {
         filter::basicauth request preamble
     } on return {response opts} {
@@ -144,11 +159,14 @@ proc accept {chan chost cport} {
     if {$err ne ""} {
         log "$chan: Connect error: $err"
         # FIXME: smarter responses
-        puts $chan "$httpver 502 Bad Gateway"
-        puts $chan "Content-type: text/plain"
-        puts $chan ""
-        puts $chan "Error connecting to $host port $port:"
-        puts $chan "  $err"
+        puts -nonewline $chan [dedent "
+                    $httpver 502 Bad Gateway
+                    Content-type: text/plain
+                    Connection: close
+                    
+                    Error connecting to $host port $port:
+                      $err
+        "]
         return
     }
     finally [list catch [list close $upchan]]
