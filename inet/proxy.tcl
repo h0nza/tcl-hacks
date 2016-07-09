@@ -1,6 +1,10 @@
 #!/usr/bin/env tclsh8.6
 #
+# FIXME: configurable ports
 socket -server {go accept} 8080
+puts "listening on 8080"
+
+# FIXME: stunnel https
 
 proc yieldm args {yieldto string cat {*}$args}
 
@@ -32,9 +36,29 @@ proc accept {chan chost cport} {
         throw {PROXY BAD_REQUEST} "Bad request: $request"
     }
 
-    # FIXME: just serve up a .pac for known dest
-
-    if {[regexp {^(\w+)://\[([^\]/ ]+)\](?::(\d+))?(.*)$} $dest -> scheme host port path]} {
+    # FIXME: add support for path-only with Host: header
+    if {[regexp {^/.*$} $dest]} {
+        # it's a plain http request, not proxy
+        set path $dest
+        if {![regexp -line {^Host: (.*)(?::(.*))$} $preamble -> host port]} {
+            throw {PROXY HTTP BAD_HOST} "Bad Host header!"
+        }
+        if {$path eq "/proxy.pac"} {
+            puts $chan "HTTP/1.1 200 OK"
+            puts $chan "Connection: close"
+            puts $chan "Content-Type: text/javascript"
+            puts $chan ""
+            # FIXME: this can be generated more cleverly, but have to be stunnel-aware
+            puts $chan "function FindProxyForURL(u,h){return \"HTTPS localhost:8443\";}"
+        } else {
+            puts $chan "HTTP/1.1 404 Not Found"
+            puts $chan "Connection: close"
+            puts $chan "Content-Type: text/plain"
+            puts $chan ""
+            puts $chan "No such thing here.  Try /proxy.pac"
+        }
+        return  ;# was HTTP; response already sent; no forwarding
+    } elseif {[regexp {^(\w+)://\[([^\]/ ]+)\](?::(\d+))?(.*)$} $dest -> scheme host port path]} {
         # IPv6 URL
     } elseif {[regexp {^(\w+)://([^:/ ]+)(?::(\d+))?(.*)$} $dest -> scheme host port path]} {
         # normal URL
@@ -45,11 +69,29 @@ proc accept {chan chost cport} {
     } else {
         throw {PROXY BAD_URL} "Bad URL: $dest"
     }
-    if {$port eq ""} {set port 80}
 
-    # FIXME: resolve server first
+    # divine the port, if blank
+    if {$port eq ""} {
+        try {
+            set default_ports {http 80 https 443 ftp 21}    ;# this should come from a smarter registry, but here's enough
+            set port [dict get $default_ports $scheme]
+        } on error {} {
+            set port 80
+        }
+    }
 
-    set upchan [socket -async $host $port]
+    # is it a request for proxy.pac?
+    if {$verb eq "GET" && $path eq "/proxy.pac" && ($host in {127.0.0.1 localhost ::1} || [string match "wpad.*" $host])} {
+        puts $chan "HTTP/1.1 200 OK"
+        puts $chan "Connection: close"
+        puts $chan "Content-Type: text/javascript"
+        puts $chan ""
+        puts $chan "function FindProxyForURL(u,h){return \"HTTPS localhost:8443\";}"
+        # FIXME: this can be generated more cleverly, but have to support Host: header and know if stunnel'ed
+        return
+    }
+
+    set upchan [socket -async $host $port]  ;# FIXME: synchronous DNS blocks :(
     yieldto chan event $upchan writable [info coroutine]
     chan event $upchan writable ""
     set err [chan configure $upchan -error]
@@ -75,6 +117,8 @@ proc accept {chan chost cport} {
         puts $upchan $request
         puts $upchan $preamble  ;# extra newline is wanted here!
     }
+
+    # fortunately, a proxy doesn't have to care about "Connection: keep-alive"
 
     chan configure $chan   -buffering none -translation binary
     chan configure $upchan -buffering none -translation binary
