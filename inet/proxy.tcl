@@ -4,7 +4,7 @@
 proc main {{port 8080}} {
     variable MYPORT
     set MYPORT $port
-    socket -server {go accept} $MYPORT
+    socket -server {accept proxy} $MYPORT
     log "listening on $MYPORT"
     # FIXME: stunnel https
     vwait forever
@@ -17,24 +17,18 @@ namespace eval util {
         tailcall trace add variable :#finally#: unset [list apply [list args $script]]
     }
 
-    proc go {args} {
-        variable :gonum
-        incr :gonum
-        tailcall coroutine goro${:gonum} {*}$args
-    }
-
     proc timestamp {} {
         clock format [clock seconds] -format "%H:%M:%S"
     }
+
     proc log {args} {
-        puts stderr "[timestamp] $args"
+        puts stderr "[timestamp] [list [info coroutine]] $args"
     }
 
     proc dedent {text} {
         set text [string trimleft $text \n]
         set text [string trimright $text \ ]
         regexp -line {^ +} $text space
-        log dedenting $space
         regsub -line -all ^$space $text ""
     }
 
@@ -113,22 +107,31 @@ namespace eval filter {
     }
 }
 
-proc accept {chan chost cport} {
-    variable MYPORT
-    log "$chan: New connection from $chost:$cport"
-    chan configure $chan -blocking 0 -buffering line -translation crlf -encoding iso8859-1
+namespace eval Clients {}
 
+proc accept {handler chan host port} {
+    set coname [string map {: _} $host]:$port
+    coroutine Clients::$coname $handler $chan $host $port
+}
+
+proc proxy {chan chost cport} {
+    variable MYPORT
     finally [list catch [list close $chan]]
 
-    chan even $chan readable [info coroutine]
-    yield
-    gets $chan request
+    log "New connection: $chan"
+    chan configure $chan -blocking 0 -buffering line -translation crlf -encoding iso8859-1
+
+    chan event $chan readable [info coroutine]
+
+    yield; gets $chan request
 
     set preamble ""
     while {[yield; gets $chan line] > 0} {
         append preamble $line\n
     }
+
     chan even $chan readable ""
+
     if {![regexp {^([A-Z]+) (.*) (HTTP/.*)$} $request -> verb dest httpver]} {
         throw {PROXY BAD_REQUEST} "Bad request: $request"
     }
@@ -160,7 +163,7 @@ proc accept {chan chost cport} {
             set port [dict get $default_ports $scheme]
         } on error {} {
             set port 80
-            log "$chan: Using :80 for scheme {$scheme}"
+            log "Using :80 for scheme {$scheme}"
         }
     }
 
@@ -183,13 +186,13 @@ proc accept {chan chost cport} {
         return
     }
 
-    log "$chan: Trying $verb $host:$port"
+    log "Trying $verb $host:$port"
     set upchan [socket -async $host $port]  ;# FIXME: synchronous DNS blocks :(
     yieldto chan event $upchan writable [info coroutine]
     chan event $upchan writable ""
     set err [chan configure $upchan -error]
     if {$err ne ""} {
-        log "$chan: Connect error: $err"
+        log "Connect error: $err"
         # FIXME: smarter responses
         puts -nonewline $chan [dedent "
                     $httpver 502 Bad Gateway
@@ -223,20 +226,20 @@ proc accept {chan chost cport} {
     # wait for one chan to close:
     lassign [yieldm] nbytes err
     if {$err ne ""} {
-        log "$chan: Error during transfer: $err"
+        log "Error during transfer: $err"
         # which channel?  No eyed-deer
     }
     if {[chan eof $chan]} {     ;# this would be the wrong test if TCP supported tip#332 !
-        log "$chan: Client abandoned keepalive"
+        log "Client abandoned keepalive"
         #close $upchan  ;# [finally] will do this for us
     } else {
         # wait until we're done sending to the client
         lassign [yieldm] nbytes err
         if {$err ne ""} {
-            log "$chan: Error during transfer: $err"
+            log "Error during transfer: $err"
         }
     }
-    log "$chan: Done"
+    log "Done"
 }
 
 main {*}$argv
