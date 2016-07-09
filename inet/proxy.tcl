@@ -1,24 +1,59 @@
 #!/usr/bin/env tclsh8.6
 #
-# FIXME: configurable ports
-socket -server {go accept} 8080
-puts "listening on 8080"
 
-# FIXME: stunnel https
-
-proc yieldm args {yieldto string cat {*}$args}
-
-proc finally {script} {
-    tailcall trace add variable :#finally#: unset [list apply [list args $script]]
+proc main {{port 8080}} {
+    variable MYPORT
+    set MYPORT $port
+    socket -server {go accept} $MYPORT
+    log "listening on $MYPORT"
+    # FIXME: stunnel https
+    vwait forever
 }
 
-proc go {args} {
-    variable :gonum
-    incr :gonum
-    tailcall coroutine goro${:gonum} {*}$args
+namespace eval util {
+    proc yieldm args {yieldto string cat {*}$args}
+
+    proc finally {script} {
+        tailcall trace add variable :#finally#: unset [list apply [list args $script]]
+    }
+
+    proc go {args} {
+        variable :gonum
+        incr :gonum
+        tailcall coroutine goro${:gonum} {*}$args
+    }
+
+    proc timestamp {} {
+        clock format [clock seconds] -format "%H:%M:%S"
+    }
+    proc log {args} {
+        puts stderr "[timestamp] $args"
+    }
+    namespace export *
+}
+namespace import util::*
+
+proc serve_http {chan scheme host port path} {
+    log "Serving HTTP"
+    if {$path eq "/proxy.pac"} {
+        puts $chan "HTTP/1.1 200 OK"
+        puts $chan "Connection: close"
+        puts $chan "Content-Type: text/javascript"
+        puts $chan ""
+        # FIXME: this can be generated more cleverly, but have to be stunnel-aware
+        puts $chan "function FindProxyForURL(u,h){return \"HTTPS localhost:8443\";}"
+    } else {
+        puts $chan "HTTP/1.1 404 Not Found"
+        puts $chan "Connection: close"
+        puts $chan "Content-Type: text/plain"
+        puts $chan ""
+        puts $chan "No such thing here.  Try /proxy.pac"
+    }
 }
 
 proc accept {chan chost cport} {
+    variable MYPORT
+    log "$chan: New connection from $chost:$cport"
     chan configure $chan -blocking 0 -buffering line -translation crlf -encoding iso8859-1
 
     finally [list close $chan]
@@ -36,28 +71,13 @@ proc accept {chan chost cport} {
         throw {PROXY BAD_REQUEST} "Bad request: $request"
     }
 
-    # FIXME: add support for path-only with Host: header
-    if {[regexp {^/.*$} $dest]} {
-        # it's a plain http request, not proxy
+    set is_http [regexp {^/.*$} $dest]  ;# for transparent proxying, or acting as an HTTP server
+    if {$is_http} {
+        set scheme "http"   ;# because stunnel is invisible
         set path $dest
         if {![regexp -line {^Host: (.*)(?::(.*))$} $preamble -> host port]} {
             throw {PROXY HTTP BAD_HOST} "Bad Host header!"
         }
-        if {$path eq "/proxy.pac"} {
-            puts $chan "HTTP/1.1 200 OK"
-            puts $chan "Connection: close"
-            puts $chan "Content-Type: text/javascript"
-            puts $chan ""
-            # FIXME: this can be generated more cleverly, but have to be stunnel-aware
-            puts $chan "function FindProxyForURL(u,h){return \"HTTPS localhost:8443\";}"
-        } else {
-            puts $chan "HTTP/1.1 404 Not Found"
-            puts $chan "Connection: close"
-            puts $chan "Content-Type: text/plain"
-            puts $chan ""
-            puts $chan "No such thing here.  Try /proxy.pac"
-        }
-        return  ;# was HTTP; response already sent; no forwarding
     } elseif {[regexp {^(\w+)://\[([^\]/ ]+)\](?::(\d+))?(.*)$} $dest -> scheme host port path]} {
         # IPv6 URL
     } elseif {[regexp {^(\w+)://([^:/ ]+)(?::(\d+))?(.*)$} $dest -> scheme host port path]} {
@@ -68,6 +88,16 @@ proc accept {chan chost cport} {
         # CONNECT-style host:port IPv6
     } else {
         throw {PROXY BAD_URL} "Bad URL: $dest"
+    }
+
+    if {$is_http && 0} {
+        # FIXME: transparently proxy this sometimes
+        serve_http $chan $scheme $host $port $path
+        return
+    } elseif {$host in {127.0.0.1 localhost ::1} && $port eq $MYPORT} {
+        # NOTE: cannot tailcall here, because that will close the channel!
+        serve_http $chan $scheme $host $port $path
+        return
     }
 
     # divine the port, if blank
@@ -91,11 +121,13 @@ proc accept {chan chost cport} {
         return
     }
 
+    log "$chan: Trying $verb $host:$port"
     set upchan [socket -async $host $port]  ;# FIXME: synchronous DNS blocks :(
     yieldto chan event $upchan writable [info coroutine]
     chan event $upchan writable ""
     set err [chan configure $upchan -error]
     if {$err ne ""} {
+        log "$chan: Connect error: $err"
         # FIXME: smarter responses
         puts $chan "$httpver 502 Bad Gateway"
         puts $chan "Content-type: text/plain"
@@ -126,6 +158,7 @@ proc accept {chan chost cport} {
     chan copy $upchan $chan -command [info coroutine]
     yieldm
     yieldm
+    log "$chan: Done"
 }
 
-vwait forever
+main {*}$argv
