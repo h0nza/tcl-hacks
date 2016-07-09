@@ -56,7 +56,7 @@ proc accept {chan chost cport} {
     log "$chan: New connection from $chost:$cport"
     chan configure $chan -blocking 0 -buffering line -translation crlf -encoding iso8859-1
 
-    finally [list close $chan]
+    finally [list catch [list close $chan]]
 
     chan even $chan readable [info coroutine]
     yieldm
@@ -136,7 +136,7 @@ proc accept {chan chost cport} {
         puts $chan "  $err"
         return
     }
-    finally [list close $upchan]
+    finally [list catch [list close $upchan]]
 
     chan configure $upchan -blocking 0 -buffering line -translation crlf -encoding iso8859-1
 
@@ -157,6 +157,12 @@ proc accept {chan chost cport} {
     chan copy $chan $upchan -command [info coroutine]
     chan copy $upchan $chan -command [info coroutine]
     yieldm
+    # handle client abandoning keepalive
+    if {[chan eof $chan]} {
+        log "$chan: Client disconnected"
+        close $upchan
+        return
+    }
     yieldm
     log "$chan: Done"
 }
