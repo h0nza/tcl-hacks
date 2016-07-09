@@ -51,6 +51,25 @@ proc serve_http {chan scheme host port path} {
     }
 }
 
+proc require_basicauth {chan request headers} {
+    if {![regexp -line {^Proxy-Authorization: Basic (.*)$} $headers -> creds]} {
+        puts $chan "HTTP/1.1 407 Proxy Authentication Required"
+        puts $chan "Proxy-Authenticate: Basic: realm=\"The Proxy\""
+        puts $chan "Connection: close" ;# FIXME: would be nice to support persistent connections
+        puts $chan ""
+        return [list]
+    } else {
+        log headers $headers
+        log creds $creds
+        set creds [binary decode base64 $creds]
+        if {![regexp {^(.*?):(.*)$} $creds -> user pass]} {
+            throw {PROXY AUTH BAD}
+        }
+        return [list $user $pass]
+    }
+}
+
+
 proc accept {chan chost cport} {
     variable MYPORT
     log "$chan: New connection from $chost:$cport"
@@ -59,7 +78,7 @@ proc accept {chan chost cport} {
     finally [list catch [list close $chan]]
 
     chan even $chan readable [info coroutine]
-    yieldm
+    yield
     gets $chan request
 
     set preamble ""
@@ -101,14 +120,20 @@ proc accept {chan chost cport} {
         }
     }
 
-    if {$is_http && 0} {
-        # FIXME: transparently proxy this sometimes
+    # don't simply check $is_http because we might want to be a transparent proxy
+    if {$host in {127.0.0.1 localhost ::1} && $port eq $MYPORT} {
         serve_http $chan $scheme $host $port $path
-        return
-    } elseif {$host in {127.0.0.1 localhost ::1} && $port eq $MYPORT} {
-        # NOTE: cannot tailcall here, because that will close the channel!
-        serve_http $chan $scheme $host $port $path
-        return
+        return ;# NOTE: cannot tailcall here, because that will trigger [finally] and close the channel!
+    }
+
+    # TODO: apply rules!
+    if 1 {
+        set creds [require_basicauth $chan $request $preamble]
+        if {$creds eq ""} {
+            log "$chan: 407!"
+            return
+        }
+        log "$chan: Authenticated $creds"
     }
 
     log "$chan: Trying $verb $host:$port"
@@ -146,13 +171,20 @@ proc accept {chan chost cport} {
     chan copy $upchan $chan -command [info coroutine]
 
     # wait for one chan to close:
-    yieldm
+    lassign [yieldm] nbytes err
+    if {$err ne ""} {
+        log "$chan: Error during transfer: $err"
+        # which channel?  No eyed-deer
+    }
     if {[chan eof $chan]} {     ;# this would be the wrong test if TCP supported tip#332 !
         log "$chan: Client abandoned keepalive"
         #close $upchan  ;# [finally] will do this for us
     } else {
         # wait until we're done sending to the client
-        yieldm
+        lassign [yieldm] nbytes err
+        if {$err ne ""} {
+            log "$chan: Error during transfer: $err"
+        }
     }
     log "$chan: Done"
 }
