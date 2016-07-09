@@ -37,7 +37,7 @@ proc serve_http {chan scheme host port path} {
     log "Serving HTTP"
     if {$path eq "/proxy.pac"} {
         puts $chan "HTTP/1.1 200 OK"
-        puts $chan "Connection: close"
+        puts $chan "Connection: close"  ;# not _strictly_ required, but be sure
         puts $chan "Content-Type: text/javascript"
         puts $chan ""
         # FIXME: this can be generated more cleverly, but have to be stunnel-aware
@@ -90,16 +90,6 @@ proc accept {chan chost cport} {
         throw {PROXY BAD_URL} "Bad URL: $dest"
     }
 
-    if {$is_http && 0} {
-        # FIXME: transparently proxy this sometimes
-        serve_http $chan $scheme $host $port $path
-        return
-    } elseif {$host in {127.0.0.1 localhost ::1} && $port eq $MYPORT} {
-        # NOTE: cannot tailcall here, because that will close the channel!
-        serve_http $chan $scheme $host $port $path
-        return
-    }
-
     # divine the port, if blank
     if {$port eq ""} {
         try {
@@ -107,17 +97,17 @@ proc accept {chan chost cport} {
             set port [dict get $default_ports $scheme]
         } on error {} {
             set port 80
+            log "$chan: Using :80 for scheme {$scheme}"
         }
     }
 
-    # is it a request for proxy.pac?
-    if {$verb eq "GET" && $path eq "/proxy.pac" && ($host in {127.0.0.1 localhost ::1} || [string match "wpad.*" $host])} {
-        puts $chan "HTTP/1.1 200 OK"
-        puts $chan "Connection: close"
-        puts $chan "Content-Type: text/javascript"
-        puts $chan ""
-        puts $chan "function FindProxyForURL(u,h){return \"HTTPS localhost:8443\";}"
-        # FIXME: this can be generated more cleverly, but have to support Host: header and know if stunnel'ed
+    if {$is_http && 0} {
+        # FIXME: transparently proxy this sometimes
+        serve_http $chan $scheme $host $port $path
+        return
+    } elseif {$host in {127.0.0.1 localhost ::1} && $port eq $MYPORT} {
+        # NOTE: cannot tailcall here, because that will close the channel!
+        serve_http $chan $scheme $host $port $path
         return
     }
 
