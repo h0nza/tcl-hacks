@@ -76,7 +76,7 @@ namespace eval record {
             ::record::dictargs _ @REQ @OPT
             unset _
             @BODY
-            return [::record::localenv]
+            return [::record::capture]
         }]
         alias ${ns}::table table ${ns}
     }
@@ -130,7 +130,7 @@ namespace eval record {
 
     # get current (local) environment as a dict
     # arrays are ignored (bluntly, by [catch])
-    proc localenv args {
+    proc capture args {
         if {$args eq ""} {
             set args [uplevel 1 {info locals}]
         }
@@ -141,6 +141,73 @@ namespace eval record {
             }
         }
         return $result
+    }
+
+    # cmdsplit splits a Tcl script into a list of commands and comments
+    proc cmdsplit {script} {
+        set chunk {}
+        set commands {}
+        foreach line [split $script \n] {
+            append chunk $line
+            if {![info complete $chunk\n]} {    ;# no end of cmd yet - put back the newline
+                append chunk \n
+                continue
+            }
+            set cmd ""
+            foreach part [split $chunk \;] {     ;# chunk may yet be split on semicolons
+                append cmd $part
+                if {![info complete $cmd\n]} {   ;# internal semicolon
+                    append cmd \;
+                    continue
+                }
+                set cmd [string trimleft $cmd]  ;# ignore leading whitespace
+                if {$cmd eq ""} {continue}      ;# skip empty commands
+                if {[string match #* $cmd]} {   ;# semicolon in comment
+                    append cmd \;
+                    continue
+                }
+                # else, we have a command!
+                lappend commands $cmd
+                set cmd ""
+            }
+            if {$cmd ne ""} {                   ;# if there's anything left, it will have an extra semicolon
+                set cmd [string range $cmd 0 end-1]
+                lappend commands $cmd
+            }
+            set chunk ""
+        }
+        if {![string is space $chunk]} {
+            throw {PARSE ERROR} "Can't parse script into a sequence of commands:\n\
+                                \tIncomplete command:\n\
+                                -----\n\
+                                $chunk
+                                -----"
+        }
+        return $commands
+    }
+
+    # wordsplit splits a Tcl command into a list of its constituent (unevaluated) words
+    proc wordsplit {cmd} {
+        if {![info complete $cmd\n]} {
+            throw {PARSE ERROR} "Not a complete command:\n-----\n$command\n-----"
+        }
+        # we can ignore leading whitespace, so the regex just has to pick up words
+        # with trailing space
+        set re { ( (?:\\.|[^\\\s])+ )        # backslash escapes or non-whitespace
+                 ( \s* )                     # space (greedy) }
+        set words {}    ;# result
+        set word ""     ;# current word
+        foreach {_ frag space} [regexp -all -inline -expanded $re $cmd] {
+            append word $frag
+            if {![info complete $word\n]} {                     ;# not yet a complete word
+                append word $space
+                continue
+            }
+            lappend words $word
+            set word ""
+        }
+        if {$word ne ""} {lappend words $word}                  ;# we can have leftovers
+        return $words
     }
 
     # [lsub] sits conceptually between [list] and [subst]:
@@ -243,7 +310,7 @@ namespace eval record {
 }
 
 
-if 1 {
+if 0 {
     record::declare option switch { } {
         -studly     {}
         -default    {}
@@ -283,4 +350,29 @@ if 1 {
 
     array set v {-readonly TRYE -background FREEN -ibg YELLOF}
     puts [join [lmap {o d} $options {option::resource $d $v($o)}] \n]
+}
+
+if 0 {
+    package require fun
+    foreach cmd [info procs ::fun::*] {
+        set parts [record::cmdsplit [info body $cmd]]
+        puts [list $cmd [llength $parts] $parts]
+        set subs [lmap p $parts {
+            if {[string match #* $p]} continue
+            lindex $p 0}]
+        puts [list $cmd [llength $parts] $subs]
+    }
+}
+package require tests
+tests {
+    test record::wordsplit-1 "wordsplit" -body {
+        join [record::wordsplit {{foo  bar}  "$baz   quz 23"   lel\ lal lka ${foo b  bar} froot\  bars bla[e {oo]}]lll}] "\n                "
+    } -result  {{foo  bar}
+                "$baz   quz 23"
+                lel\ lal
+                lka
+                ${foo b  bar}
+                froot\ 
+                bars
+                bla[e {oo]}]lll}
 }
