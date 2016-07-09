@@ -51,24 +51,21 @@ proc serve_http {chan scheme host port path} {
     }
 }
 
-proc require_basicauth {chan request headers} {
-    if {![regexp -line {^Proxy-Authorization: Basic (.*)$} $headers -> creds]} {
-        puts $chan "HTTP/1.1 407 Proxy Authentication Required"
-        puts $chan "Proxy-Authenticate: Basic: realm=\"The Proxy\""
-        puts $chan "Connection: close" ;# FIXME: would be nice to support persistent connections
-        puts $chan ""
-        return [list]
-    } else {
-        log headers $headers
-        log creds $creds
+namespace eval filter {
+    proc basicauth {_request _headers} {
+        upvar 1 $_request request
+        upvar 1 $_headers headers
+        if {![regexp -line {^Proxy-Authorization: Basic (.*)$} $headers -> creds]} {
+            return -code return "HTTP/1.1 407 Proxy Authentication Required\nProxy-Authenticate: Basic: realm=\"Tiny Proxy\"\nConnection: close\n\n"
+        }
         set creds [binary decode base64 $creds]
         if {![regexp {^(.*?):(.*)$} $creds -> user pass]} {
             throw {PROXY AUTH BAD}
         }
-        return [list $user $pass]
+        log "Authenticated: $user $pass"
+        regsub -line {^Proxy-Authorization: Basic (.*)\n} $headers "" headers
     }
 }
-
 
 proc accept {chan chost cport} {
     variable MYPORT
@@ -126,14 +123,17 @@ proc accept {chan chost cport} {
         return ;# NOTE: cannot tailcall here, because that will trigger [finally] and close the channel!
     }
 
-    # TODO: apply rules!
-    if 1 {
-        set creds [require_basicauth $chan $request $preamble]
-        if {$creds eq ""} {
-            log "$chan: 407!"
-            return
-        }
-        log "$chan: Authenticated $creds"
+    # TODO: apply filters!
+    #
+    # Filters must be able to:
+    #  - rewrite parts of the request
+    #  - provide a full response
+    #  - rewrite parts of the response
+    try {
+        filter::basicauth request preamble
+    } on return {response opts} {
+        puts -nonewline $chan $response
+        return
     }
 
     log "$chan: Trying $verb $host:$port"
