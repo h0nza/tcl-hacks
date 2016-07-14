@@ -37,14 +37,15 @@ namespace eval util {
 namespace import util::*
 
 proc serve_http {chan scheme host port path} {
-    log "Serving HTTP"
+    log "Serving HTTP" $path
     if {$path eq "/proxy.pac"} {
         puts $chan "HTTP/1.1 200 OK"
         puts $chan "Connection: close"  ;# not _strictly_ required, but be sure
         puts $chan "Content-Type: text/javascript"
         puts $chan ""
         # FIXME: this can be generated more cleverly, but have to be stunnel-aware
-        puts $chan "function FindProxyForURL(u,h){return \"HTTPS localhost:8443\";}"
+        puts $chan "function FindProxyForURL(u,h){return \"PROXY localhost:8080\";}"
+        #puts $chan "function FindProxyForURL(u,h){return \"HTTPS localhost:8443\";}"
     } else {
         puts $chan "HTTP/1.1 404 Not Found"
         puts $chan "Connection: close"
@@ -86,6 +87,13 @@ namespace eval filter {
         set headers "Host: $host:$port\n$headers"
     }
 
+    proc nokeepalive {_request _headers} {
+        upvar 1 $_request request
+        upvar 1 $_headers headers
+        regsub -line {^Connection: (.*)\n} $headers "" headers
+        append headers "Connection: close\n"
+    }
+
     proc basicauth {_request _headers} {
         upvar 1 $_request request
         upvar 1 $_headers headers
@@ -123,6 +131,11 @@ proc proxy {chan chost cport} {
     chan event $chan readable [info coroutine]
 
     yield; gets $chan request
+
+    if {$request eq "" && [chan eof $chan]} {
+        log "Client closed before sending request"
+        return
+    }
 
     set preamble ""
     while {[yield; gets $chan line] > 0} {
@@ -167,6 +180,7 @@ proc proxy {chan chost cport} {
     }
 
     # don't simply check $is_http because we might want to be a transparent proxy
+    # FIXME: make this a filter
     if {$host in {127.0.0.1 localhost ::1} && $port eq $MYPORT} {
         serve_http $chan $scheme $host $port $path
         return ;# NOTE: cannot tailcall here, because that will trigger [finally] and close the channel!
@@ -180,6 +194,7 @@ proc proxy {chan chost cport} {
     try {
         filter::deproxify request preamble
         filter::basicauth request preamble
+        filter::nokeepalive request preamble
     } on return {response opts} {
         puts -nonewline $chan $response
         return
@@ -217,6 +232,9 @@ proc proxy {chan chost cport} {
         puts $upchan $preamble  ;# extra newline is wanted here!
     }
 
+    # FIXME: handle persistent connections
+    #   - need to intervene in the beginning of EVERY http request
+    #   - which is kind of awful.  filter::nokeepalive will do?
     chan configure $chan   -buffering none -translation binary
     chan configure $upchan -buffering none -translation binary
     chan copy $chan $upchan -command [info coroutine]
