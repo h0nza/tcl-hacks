@@ -2,12 +2,21 @@
 #
 
 proc main {{port 8080}} {
-    variable MYPORT
-    set MYPORT $port
-    socket -server {accept proxy} $MYPORT
-    log "listening on $MYPORT"
+    # FIXME: support a bind address/port registry
+    variable MYPORTS
+    lappend MYPORTS $port
+    socket -server {accept proxy} $port
+    log "listening on $port"
     # FIXME: stunnel https
-    vwait forever
+    if {[file exists stunnel.sh]} {
+        variable SSL
+        set sslport [expr {$port + 443 - 80}]
+        lappend MYPORTS $sslport
+        set SSL [open "|./stunnel.sh $sslport $port" w]
+        finally [list close $SSL]   ;# harhar
+        log "listening (TLS) on $sslport"
+        vwait forever
+    }
 }
 
 namespace eval util {
@@ -44,8 +53,15 @@ proc serve_http {chan scheme host port path} {
         puts $chan "Content-Type: text/javascript"
         puts $chan ""
         # FIXME: this can be generated more cleverly, but have to be stunnel-aware
-        puts $chan "function FindProxyForURL(u,h){return \"PROXY localhost:8080\";}"
-        #puts $chan "function FindProxyForURL(u,h){return \"HTTPS localhost:8443\";}"
+        variable MYPORTS
+        variable SSL
+        if {[info exists SSL] && $SSL ne ""} {
+            set port [lindex $MYPORTS 1]
+            puts $chan "function FindProxyForURL(u,h){return \"HTTPS localhost:$port\";}"
+        } else {
+            set port [lindex $MYPORTS 0]
+            puts $chan "function FindProxyForURL(u,h){return \"PROXY localhost:$port\";}"
+        }
     } else {
         puts $chan "HTTP/1.1 404 Not Found"
         puts $chan "Connection: close"
@@ -122,7 +138,7 @@ proc accept {handler chan host port} {
 }
 
 proc proxy {chan chost cport} {
-    variable MYPORT
+    variable MYPORTS
     finally [list catch [list close $chan]]
 
     log "New connection: $chan"
@@ -152,7 +168,7 @@ proc proxy {chan chost cport} {
     if {$is_http} {
         set scheme "http"   ;# because stunnel is invisible
         set path $dest
-        if {![regexp -line {^Host: (.*)(?::(.*))$} $preamble -> host port]} {
+        if {![regexp -line {^Host: (.*?)(?::(\d+))?$} $preamble -> host port]} {
             throw {PROXY HTTP BAD_HOST} "Bad Host header!"
         }
     } elseif {[regexp {^(\w+)://\[([^\]/ ]+)\](?::(\d+))?(.*)$} $dest -> scheme host port path]} {
@@ -164,24 +180,21 @@ proc proxy {chan chost cport} {
     } elseif {[regexp {^\[([^\]/ ]+)\](?::(\d+))?$} $dest -> host port]} {
         # CONNECT-style host:port IPv6
     } else {
-        throw {PROXY BAD_URL} "Bad URL: $dest"
+        throw [list PROXY BAD_URL $dest] "Invalid URL format: [list $dest]"
+    }
+
+    if {$scheme ne "http"} {
+        throw [list PROXY BAD_SCHEME $scheme] "Unknown URL scheme [list $scheme]; only HTTP supported!"
     }
 
     # divine the port, if blank
     if {$port eq ""} {
-        try {
-            # wait, I only speak http!
-            set default_ports {http 80 https 443 ftp 21}    ;# this should come from a smarter registry, but here's enough
-            set port [dict get $default_ports $scheme]
-        } on error {} {
-            set port 80
-            log "Using :80 for scheme {$scheme}"
-        }
+        set port 80
     }
 
     # don't simply check $is_http because we might want to be a transparent proxy
     # FIXME: make this a filter
-    if {$host in {127.0.0.1 localhost ::1} && $port eq $MYPORT} {
+    if {$host in {127.0.0.1 localhost ::1} && $port in $MYPORTS} {
         serve_http $chan $scheme $host $port $path
         return ;# NOTE: cannot tailcall here, because that will trigger [finally] and close the channel!
     }
