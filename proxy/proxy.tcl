@@ -92,11 +92,10 @@ namespace eval filter {
         if {![regexp -line {^Proxy-Authorization: Basic (.*)$} $headers -> creds]} {
             return -code return [dedent {
                 HTTP/1.1 407 Proxy Authentication Required
-                Proxy-Authenticate: Basic: realm="Tiny Proxy"
+                Proxy-Authenticate: Basic realm="Tiny Proxy"
                 Connection: close
                 
             }]
-            return -code return "HTTP/1.1 407 Proxy Authentication Required\nProxy-Authenticate: Basic: realm=\"Tiny Proxy\"\nConnection: close\n\n"
         }
         set creds [binary decode base64 $creds]
         if {![regexp {^(.*?):(.*)$} $creds -> user pass]} {
