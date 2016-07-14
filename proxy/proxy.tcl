@@ -161,7 +161,7 @@ proc proxy {chan chost cport} {
     chan even $chan readable ""
 
     if {![regexp {^([A-Z]+) (.*) (HTTP/.*)$} $request -> verb dest httpver]} {
-        throw {PROXY BAD_REQUEST} "Bad request: $request"
+        throw {PROXY BAD_REQUEST} "Bad request: [list $request]"
     }
 
     set is_http [regexp {^/.*$} $dest]  ;# for transparent proxying, or acting as an HTTP server
@@ -176,14 +176,16 @@ proc proxy {chan chost cport} {
     } elseif {[regexp {^(\w+)://([^:/ ]+)(?::(\d+))?(.*)$} $dest -> scheme host port path]} {
         # normal URL
     } elseif {[regexp {^([^:/ ]+)(?::(\d+))?$} $dest -> host port]} {
+        set scheme ""
         # CONNECT-style host:port
     } elseif {[regexp {^\[([^\]/ ]+)\](?::(\d+))?$} $dest -> host port]} {
+        set scheme ""
         # CONNECT-style host:port IPv6
     } else {
         throw [list PROXY BAD_URL $dest] "Invalid URL format: [list $dest]"
     }
 
-    if {$scheme ne "http"} {
+    if {$scheme ni {"" "http"}} {
         throw [list PROXY BAD_SCHEME $scheme] "Unknown URL scheme [list $scheme]; only HTTP supported!"
     }
 
