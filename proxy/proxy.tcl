@@ -57,10 +57,10 @@ proc serve_http {chan scheme host port path} {
         variable SSL
         if {[info exists SSL] && $SSL ne ""} {
             set port [lindex $MYPORTS 1]
-            puts $chan "function FindProxyForURL(u,h){return \"HTTPS localhost:$port\";}"
+            puts $chan "function FindProxyForURL(u,h){return \"HTTPS $host:$port\";}"
         } else {
             set port [lindex $MYPORTS 0]
-            puts $chan "function FindProxyForURL(u,h){return \"PROXY localhost:$port\";}"
+            puts $chan "function FindProxyForURL(u,h){return \"PROXY $host:$port\";}"
         }
     } else {
         puts $chan "HTTP/1.1 404 Not Found"
@@ -194,9 +194,9 @@ proc proxy {chan chost cport} {
         set port 80
     }
 
-    # don't simply check $is_http because we might want to be a transparent proxy
+    # FIXME: don't simply check $is_http because we might want to be a transparent proxy
     # FIXME: make this a filter
-    if {$host in {127.0.0.1 localhost ::1} && $port in $MYPORTS} {
+    if {$is_http || ($host in {127.0.0.1 localhost ::1} && $port in $MYPORTS)} {
         serve_http $chan $scheme $host $port $path
         return ;# NOTE: cannot tailcall here, because that will trigger [finally] and close the channel!
     }
