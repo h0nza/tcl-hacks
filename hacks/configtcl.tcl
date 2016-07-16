@@ -62,14 +62,13 @@ proc cunk {cint args} {
             cerror $cint "Too many arguments for [lindex $args 0]"
         }
     }
-    if {[string match \n* $value]} {
-        set value [interp invokehidden $cint apply [list {{Config {}}} [list #try $value on ok {} {\#set Config}]]]
-    }
     if {[dict exists [interp invokehidden $cint set Config] {*}$keys]} {
         cerror $cint "Redefinition of $keys"
     }
+    if {[string match \n* $value]} {
+        set value [interp invokehidden $cint apply [list {{Config {}}} [list #try $value on ok {} {\#set Config}]]]
+    }
     interp invokehidden $cint dict set Config {*}$keys $value
-    #return $value
 }
 
 proc cerror {cint msg} {
