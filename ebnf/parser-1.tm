@@ -36,14 +36,14 @@ namespace eval Parser {
     proc space {} {}    ;# default space is a noop
     proc space {} { ;# for RC we want a better space
         upvar 1 s s i i
-        incr i [string length {*}[regexp -inline -start $i {\s*} $s]]
+        incr i [string length [lindex [regexp -inline -start $i {\s*} $s] 0]]
         return
     }
     proc %space {re} {
         set re \\A(?:$re)
         tailcall proc space {} [format {
             upvar 1 s s i i
-            incr i [string length {*}[regexp -inline -start $i %s $s]]
+            incr i [string length [lindex [regexp -inline -start $i %s $s] 0]]
             return
         } [list $re]]
     }
