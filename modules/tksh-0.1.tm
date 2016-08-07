@@ -518,6 +518,9 @@ namespace eval tksh {
         forward history history
 
         # public interfaces to io:
+        method puts {str} {
+            my stdout $str\n
+        }
         method input {s} {
             my Input $s
         }
@@ -1203,6 +1206,13 @@ if {[info exists ::argv0] && $::argv0 eq [info script]} {
     update
     tksh::autoscroll .console.output
 
-    puts "Interpreter is $i"
-    puts "Console says [.console eval {package require Tcl}]"
+    #puts "Interpreter is $i"
+    #puts "Console says [.console eval {package require Tcl}]"
+
+    .console puts "Tcl [package require Tcl]"
+    .console puts "Tk [package require Tk]"
+    .console puts "Executable [info nameofexecutable]"
+    .console puts "Library [info library]"
+    .console puts "Architecture $tcl_platform(os) $tcl_platform(machine)"
+    catch {boot .console eval}
 }
