@@ -61,6 +61,7 @@ pkg chans {
         }
         method Postevent {chan event} {
             if {$event in $Watch} {
+                # FIXME: after idle? (see http://core.tcl.tk/tcl/tktview?name=67a5eabbd3)
                 chan postevent $chan $event
             }
         }
