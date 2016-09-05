@@ -651,6 +651,7 @@ namespace eval tksh {
                 sel     {-background darkgreen}
                 result  {}
                 error   {-foreground red -underline yes}
+                error-detail   {-foreground red -underline no -elide 1}
             }
 
             $hull.output configure {*}$textopts
@@ -659,7 +660,10 @@ namespace eval tksh {
             dict for {tag opts} [array get tagconfig] {
                 $hull.output tag configure $tag {*}$opts ;#[dict merge $defaults $opts]
             }
-            $hull.output tag bind error <Double-1> +[callback my HotError]
+            $hull.output tag bind error         <Double-1>  +[callback my HotError] ;#\;break
+            $hull.output tag bind error-detail  <Double-1>  +[callback my HotError] ;#\;break
+            # FIXME: it would be nice if the above binds could [break] to prevent selection 
+            # but that looks like it's going to need plumbing the main Text bindtags ..
         }
 
         method SetupBinds {} {
@@ -791,33 +795,33 @@ namespace eval tksh {
                     $hull.output ins end $res result
                 }
             } else {
-                variable HotErrors
                 set tag "Err [info cmdcount]"
-                $hull.output ins end "\[$rc\]: $res" [list error $tag]
-                dict set HotErrors $tag $opts
-                my VacuumErrors
+                $hull.output ins end "\[$rc\]: $res\n" [list error $tag]
+                $hull.output ins end [my FormatError $opts] [list error-detail "$tag Detail"]
             }
-            # FIXME: store last command result
             $hull.output see end
         }
 
-        method HotError {} {
-            variable HotErrors
-            set tags [$hull.output tag names insert]
-            set tag [lsearch -inline $tags "Err *"]
-            my stderr [dict get $HotErrors $tag]
+        method FormatError {d} {
+            if {[dict size $d] eq 0} return
+            set d [lsort -stride 2 $d]  ;# canonical order is nice for errors
+            set maxl [::tcl::mathfunc::max {*}[lmap k [dict keys $d] {string length $k}]]
+            set map [list \n [format "\n%-*s   " $maxl ""]]
+            ;# [dict for] doesn't see duplicate elements, but I want to:
+            foreach {key value} $d {
+                set value [string map $map $value]
+                append result [format "%-*s = %s\n" $maxl $key $value]
+            }
+            return $result
         }
-        method VacuumErrors {} {
-            variable HotErrors
-            set errtags [lmap tag [$hull.output tag names] {
-                if {![string match "Err *" $tag]} continue
-                if {[$hull.output tag ranges $tag] eq ""} {
-                    $hull.output tag delete $tag
-                    dict unset HotErrors $tag
-                    continue
-                }
-                set tag
-            }]
+
+        method HotError {} {
+            set tags [$hull.output tag names current]
+            set tag [lsearch -inline $tags "Err *"]
+            if {![string match "* Detail" $tag]} {set tag "$tag Detail"}
+            $hull.output tag configure $tag -elide [expr {0 eq [
+                $hull.output tag cget $tag -elide
+            ]}]
         }
 
         # configurable items - see [method Configure]:
@@ -1192,7 +1196,7 @@ if {[info exists ::argv0] && $::argv0 eq [info script]} {
     #console .console -interp % -stdout tee
     #set i [.console cget -interp]
 
-    console .console -thread % -stdout tee
+    console .console -thread % -stdout tee -resultvar ::_
     set i [.console cget -thread]
 
     #.console buttons add "&Packages" [::tksh::callback .console input "package names\n"]
