@@ -445,7 +445,10 @@ namespace eval tksh {
 
             bindtags $hull.output [string map {Text ConsoleOutput.Text} [bindtags $hull.output]]
 
-            History create history {{parray ::tcl_platform}}
+            History create history {
+                {parray ::tcl_platform}
+                {coroeval {after 500 [info coroutine]; puts "yielding [info coroutine]"; yield; puts "done"; expr 501}}
+            }
 
             #pack $hull.top -side top -expand yes -fill both
             #pack $hull.bottom -side top -expand yes -fill both
@@ -1215,6 +1218,27 @@ if {[info exists ::argv0] && $::argv0 eq [info script]} {
         append ::argv0 {}
         set ::tcl_interactive 1     ;# we like this in scripts
     }
+
+    # issue scripts from the console that can [yield] to the event loop!
+    .console eval {
+        proc coroeval {script} {
+            variable CoroEval
+            variable CoroEvalID
+            incr CoroEvalID
+            set ID $CoroEvalID
+            coroutine coroeval#$CoroEvalID CoroEval $ID $script
+            if {![info exists CoroEval($ID)]} {
+                vwait CoroEval($ID)
+            }
+            lassign $CoroEval($ID)[unset CoroEval($ID)] R E O
+            return -code $R -options $O $E
+        }
+        proc CoroEval {ID script} {
+            variable CoroEval
+            lappend CoroEval($ID) [catch $script E O] $E $O
+        }
+    }
+    #.console configure -evalprefix coroeval
 
     update
     tksh::autoscroll .console.output
