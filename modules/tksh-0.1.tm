@@ -725,9 +725,6 @@ namespace eval tksh {
             return -code break
         }
         method <Control-Down> {} {
-        if {[string match *\n $s]} {
-            my <Return>
-        }
             focus $hull.output
             event generate $hull.output <Down>
         }
