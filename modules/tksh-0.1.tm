@@ -710,10 +710,18 @@ namespace eval tksh {
             return -code break
         }
         method <Up> {} {
+            lassign [split [$hull.input index insert] .]        insrow inscol
+            lassign [split [$hull.input index "end-1 char"] .]  endrow endcol
+            if {$insrow > 1}        {return -code continue}
             my SetInput [history prev [my GetInput]]
+            return -code break
         }
         method <Down> {} {
+            lassign [split [$hull.input index insert] .]        insrow inscol
+            lassign [split [$hull.input index "end-1 char"] .]  endrow endcol
+            if {$insrow < $endrow}  {return -code continue}
             my SetInput [history next [my GetInput]]
+            return -code break
         }
         method <Control-Down> {} {
         if {[string match *\n $s]} {
@@ -751,6 +759,9 @@ namespace eval tksh {
         }
         method GetInput {} {
             string range [$hull.input get 1.0 end] 0 end-1   ;# strip newline!
+        }
+        method InputPos {} {
+            $hull.input count -displaychars 1.0 insert
         }
 
         # execute in "boss mode" - local escape
@@ -991,8 +1002,7 @@ namespace eval tksh {
             return $history
         }
         method add {entry} {
-            unset -nocomplain left
-            unset -nocomplain right
+            unset -nocomplain left right
             if {$entry ne "" && $entry ne [lindex $history end]} {
                 lappend history $entry
             }
@@ -1000,7 +1010,8 @@ namespace eval tksh {
         }
         method prev {curr} {
             if {![info exists left]} {
-                set left $history
+                set pat $curr*
+                set left [lsearch -inline -all -glob $history $pat]
                 set right {}
             }
             if {$left eq ""} {
