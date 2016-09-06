@@ -1230,4 +1230,5 @@ if {[info exists ::argv0] && $::argv0 eq [info script]} {
     .console puts "Library [info library]"
     .console puts "Architecture $tcl_platform(os) $tcl_platform(machine)"
     catch {boot .console eval}
+    wm protocol .console WM_DELETE_WINDOW exit
 }
