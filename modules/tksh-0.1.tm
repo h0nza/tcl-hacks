@@ -710,16 +710,14 @@ namespace eval tksh {
             return -code break
         }
         method <Up> {} {
-            lassign [split [$hull.input index insert] .]        insrow inscol
-            lassign [split [$hull.input index "end-1 char"] .]  endrow endcol
-            if {$insrow > 1}        {return -code continue}
+            set n [$hull.input count -displaylines 1.0 insert]
+            if {$n > 0} {return -code continue}
             my SetInput [history prev [my GetInput]]
             return -code break
         }
         method <Down> {} {
-            lassign [split [$hull.input index insert] .]        insrow inscol
-            lassign [split [$hull.input index "end-1 char"] .]  endrow endcol
-            if {$insrow < $endrow}  {return -code continue}
+            set n [$hull.input count -displaylines insert end]
+            if {$n > 1} {return -code continue}
             my SetInput [history next [my GetInput]]
             return -code break
         }
