@@ -525,7 +525,13 @@ namespace eval tksh {
             my stdout $str\n
         }
         method input {s} {
-            my Input $s
+            if {[regexp {^(.*)\n$} $s -> t]} {
+                my Input $t
+                focus $hull.input
+                event generate $hull.input <Return>
+            } else {
+                my Input $s
+            }
         }
         method clearInput {} {
             my SetInput ""
@@ -697,7 +703,7 @@ namespace eval tksh {
                 after idle [callback my Flash $hull.input]
                 return -code break
             } elseif {![my IsComplete $script]} {
-                return -code continue
+                return -code ok
             } elseif {[my BossKey $script]} {
                 after idle [callback my BossExec $script]
                 my SetInput ""
@@ -714,13 +720,13 @@ namespace eval tksh {
         }
         method <Up> {} {
             set n [$hull.input count -displaylines 1.0 insert]
-            if {$n > 0} {return -code continue}
+            if {$n > 0} {return -code ok}
             my SetInput [history prev [my GetInput]]
             return -code break
         }
         method <Down> {} {
             set n [$hull.input count -displaylines insert end]
-            if {$n > 1} {return -code continue}
+            if {$n > 1} {return -code ok}
             my SetInput [history next [my GetInput]]
             return -code break
         }
@@ -744,13 +750,7 @@ namespace eval tksh {
         # input simplified accessors
         method Input {s} {
             # FIXME: check if blocked?
-            if {[regexp {^(.*)\n$} $s -> t]} {
-                $hull.input insert insert $t
-                focus $hull.input
-                event generate $hull.input <Return>
-            } else {
-                $hull.input insert insert $s
-            }
+            $hull.input insert insert $s
         }
         method SetInput {text} {
             $hull.input replace 1.0 end $text
@@ -977,7 +977,7 @@ namespace eval tksh {
 
     proc Console.Output.Key {W K args} {
         set input [winfo parent $W].input
-        if {[string match *_* $K]} {return -code continue}  ;# FIXME: imprecise HACK to avoid modifiers
+        if {[string match *_* $K]} {return -code ok}  ;# FIXME: imprecise HACK to avoid modifiers
         focus $input
         event generate $input <Key-$K>
         return -code break
