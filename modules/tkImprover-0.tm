@@ -7,6 +7,33 @@
 #   * further text improvements from http://wiki.tcl.tk/14918
 #   * treeview RowSelect events from http://wiki.tcl.tk/24636
 #   * treeview search by typing from http://wiki.tcl.tk/20065
+#
+# TODO:
+#   * MouseWheel (win) vs Button-[45] (unix) (see http://wiki.tcl.tk/3893)
+#
+# from nemethi @ comp.lang.tcl:  panedwindow performance improver
+#
+# proc ttk::panedwindow::Drag {w x y} {
+#     variable State
+#     if {!$State(pressed)} { return }
+#
+#     switch -- [$w cget -orient] {
+#         horizontal { set State(delta) [expr {$x - $State(pressX)}] }
+#         vertical   { set State(delta) [expr {$y - $State(pressY)}] }
+#     }
+#
+#     if {![info exists State(afterId)]} {
+#         set State(afterId) [after 10 [list ttk::panedwindow::UpdateSashPos $w]]
+#     }
+# }
+#
+# proc ttk::panedwindow::UpdateSashPos {w} {
+#     variable State
+#     unset State(afterId)
+#
+#     $w sashpos $State(sash) [expr {$State(sashPos) + $State(delta)}]
+# }
+
 package require Tk
 
 # widgets should take focus when clicked on
