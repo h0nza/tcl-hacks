@@ -21,11 +21,11 @@
 #   79    finger   rfc1288, 4146
 #   113   ident    rfc1413
 #   129   pwdgen   rfc972
+#   1080  socks5   rfc1928 (outbound tcp only)
 #   8080  proxy    rfc2616(ish)
 #
 # Potentially interesting to add:
 #   telnet/23   (illustrate handling telnet \xff codes in a transchan)
-#   socks/1080  (socks4a out is almost trivial, see tcpmux) rfc1928
 #
 #   sntp/123    rfc5905     $ date -r$((16#`printf "\xb%-47.s"|nc -uw1 ntp.metas.ch 123|xxd -s40 -l4 -p`-2208988800))
 #       0b[string cat 00 001 011 ][ string repeat \x00 47]
@@ -300,6 +300,98 @@ namespace eval inet {
     service netstat/15 {
         foreach cmd [info commands sockets::*] {
             puts $chan $cmd
+        }
+    }
+
+# socks5 is pretty simple - outbound TCP only
+    service socks5/1080 {
+        chan configure $chan -encoding binary -bufferin none
+
+        # authentication
+        scan [read $chan 2] %c%c ver nmeth
+        if {$ver != 5} return
+        binary scan [read $chan $nmeth] c* meths
+        if {0 in $meths} {          ;# no authentication! yay
+            # do nothing?
+        } elseif {2 in $meths} {    ;# user/passwd
+            scan [read $chan 2] %c%c ver len
+            if {$ver != 1} return
+            set username [read $chan $len]
+            scan [read $chan 1] %c len
+            set password [read $chan $len]
+            puts -nonewline $chan \1\0  ;# success!
+        } else {                    ;# no supported auth methods
+            puts -nonewline $chan \x05\xff
+            return
+        }
+
+        # request
+        scan [read $chan 4] %c%c%c%c ver cmd z atyp
+        if {$ver != 5 || $z != 0} return
+
+        if {$atyp == 1} {
+            scan [read $chan 4] %c%c%c%c a b c d
+            set dst $a.$b.$c.$d
+        } elseif {$atyp == 3} {
+            scan [read $chan 1] %c alen
+            set dst [read chan $alen]
+        } elseif {$atyp == 4} {
+            binary scan [read $chan 16] c* dst
+            set dst [join $dst :]
+        }
+
+        binary scan [read $chan 2] Su dpt
+
+        if {$cmd == 3} {        ;# UDP
+            puts -nonewline $chan \5\7\0\3\0\0\0    ;# cmd not supported ":0"
+            return
+        } elseif {$cmd == 2} {  ;# bind
+            puts -nonewline $chan \5\7\0\3\0\0\0    ;# cmd not supported ":0"
+            return
+        } elseif {$cmd == 1} {  ;# connect
+
+            set upchan [socket -async $dst $dpt]
+            finally [list catch [list close $upchan]]
+
+            yieldto chan event $upchan writable [info coroutine]
+            chan event $upchan writable ""
+
+            set err [chan configure $upchan -error]
+            if {$err ne ""} {
+                # 1 generic 2 notallowed
+                # 3 netunreach 4 hostunreach
+                # 5 connrefused 6 ttlexpired
+                puts -nonewline $chan \5\5\0\1\0\0\0    ;# connection refused
+                return
+            }
+
+            lassign [chan configure $upchan -peername] myaddr _ myport
+
+            if {[scan $myaddr %d.%d.%d.%d a b c d] == 4} {
+                set myaddr [format %c%c%c%c 3 $a $b $c $d]  ;# ipv4
+            } else {
+                # pack an IPv6 address
+                lassign [split $myaddr ::] a b
+                set myaddr [lrepeat 16 0]
+                set i -1
+                foreach octet $a {
+                    lset $myaddr [incr i] $octet
+                }
+                set i 16
+                foreach octet [lreverse $b] {
+                    lset $myaddr [incr i -1] $octet
+                }
+                set myaddr [binary format cc* 4 $myaddr]    ;# ipv6
+            }
+            set myport [binary format Su $myport]
+            puts -nonewline $chan \5\0\0$myaddr$myport      ;# OK
+
+            chan configure $upchan -translation binary
+
+            chan copy $chan $upchan -command [info coroutine]
+            chan copy $upchan $chan -command [info coroutine]
+            lassign [yieldm] nbytes err     ;# twice to catch both events
+            lassign [yieldm] nbytes err
         }
     }
 
