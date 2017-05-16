@@ -312,7 +312,7 @@ namespace eval inet {
         if {$ver != 5} return
         binary scan [read $chan $nmeth] c* meths
         if {0 in $meths} {          ;# no authentication! yay
-            # do nothing?
+            puts -nonewline $chan \x05\x00
         } elseif {2 in $meths} {    ;# user/passwd
             scan [read $chan 2] %c%c ver len
             if {$ver != 1} return
@@ -329,19 +329,21 @@ namespace eval inet {
         scan [read $chan 4] %c%c%c%c ver cmd z atyp
         if {$ver != 5 || $z != 0} return
 
-        if {$atyp == 1} {
+        if {$atyp == 1} {       ;# IPv4
             scan [read $chan 4] %c%c%c%c a b c d
             set dst $a.$b.$c.$d
-        } elseif {$atyp == 3} {
+        } elseif {$atyp == 3} { ;# hostname
             scan [read $chan 1] %c alen
             set dst [read chan $alen]
-        } elseif {$atyp == 4} {
+        } elseif {$atyp == 4} { ;# IPv6
             binary scan [read $chan 16] c* dst
             set dst [join $dst :]
         }
+        puts dst=$dst
 
         binary scan [read $chan 2] Su dpt
 
+        puts dpt=$dpt
         if {$cmd == 3} {        ;# UDP
             puts -nonewline $chan \5\7\0\3\0\0\0    ;# cmd not supported ":0"
             return
@@ -365,10 +367,10 @@ namespace eval inet {
                 return
             }
 
-            lassign [chan configure $upchan -peername] myaddr _ myport
+            lassign [chan configure $upchan -sockname] myaddr _ myport
 
             if {[scan $myaddr %d.%d.%d.%d a b c d] == 4} {
-                set myaddr [format %c%c%c%c 3 $a $b $c $d]  ;# ipv4
+                set myaddr [format %c%c%c%c%c 1 $a $b $c $d]  ;# IPv4
             } else {
                 # pack an IPv6 address
                 lassign [split $myaddr ::] a b
@@ -381,7 +383,7 @@ namespace eval inet {
                 foreach octet [lreverse $b] {
                     lset $myaddr [incr i -1] $octet
                 }
-                set myaddr [binary format cc* 4 $myaddr]    ;# ipv6
+                set myaddr [binary format cc* 4 $myaddr]    ;# IPv6
             }
             set myport [binary format Su $myport]
             puts -nonewline $chan \5\0\0$myaddr$myport      ;# OK
