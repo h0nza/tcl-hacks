@@ -305,7 +305,7 @@ namespace eval inet {
 
 # socks5 is pretty simple - outbound TCP only
     service socks5/1080 {
-        chan configure $chan -encoding binary -bufferin none
+        chan configure $chan -encoding binary -buffering none
 
         # authentication
         scan [read $chan 2] %c%c ver nmeth
