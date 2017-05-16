@@ -239,7 +239,7 @@ namespace eval inet {
             if {[regexp {^/W(?: +(.*))$} $req -> user]} {
                 set parts [split $user @]
                 if {[llength $parts] > 1} {
-                    puts chan "No forwarding allowed!"
+                    puts $chan "No forwarding allowed!"
                 } else {
                     foreach line {
                         Vending machines SHOULD respond to a {C} request with a list of all
@@ -339,11 +339,9 @@ namespace eval inet {
             binary scan [read $chan 16] c* dst
             set dst [join $dst :]
         }
-        puts dst=$dst
 
         binary scan [read $chan 2] Su dpt
 
-        puts dpt=$dpt
         if {$cmd == 3} {        ;# UDP
             puts -nonewline $chan \5\7\0\3\0\0\0    ;# cmd not supported ":0"
             return
