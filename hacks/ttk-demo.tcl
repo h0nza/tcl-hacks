@@ -36,6 +36,21 @@ if 0 {
         ::ttk::separator
         ::ttk::spinbox
         ::ttk::treeview
+
+    TODO:
+    
+     * put this in a starpack with a collection of themes.
+       Sources:
+         http://chiselapp.com/user/sgolovan/repository/ttk-themes/
+         http://tktable.cvs.sourceforge.net/viewvc/tktable/tile-themes/
+         http://chiselapp.com/user/skoro/repository/tclapps/
+         https://sourceforge.net/projects/freewrap/files/freewrap/
+
+       Refs:
+         http://wiki.tcl.tk/48689
+
+      * (Schelte) wrap everything in a frame: place [ttk::frame .bg] -relwidth 1 -relheight 1
+    
 }
 
 package require Tk
