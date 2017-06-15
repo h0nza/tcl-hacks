@@ -43,6 +43,7 @@ pkg tests {
         } on ok {} {
             puts "$::argv0 tests complete!"
         } finally {
+            tcltest::cleanupTests
             namespace delete ::tcltests
         }
     }
