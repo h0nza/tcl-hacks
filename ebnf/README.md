@@ -46,7 +46,8 @@ we alias [return] to [tailcall lappend 0], which has a few side effects:
 
 The default resultscript is [list <rulename> {*}$0], which is pretty good as a generic option.  You
 might also want to try [list <rulename> $1 {*}$2] for right-recursive repeating rules, [return] for
-a silent return-only grammar.  %result can be used to change the default for any rules defined after it.
+a silent grammar (a recogniser).  %result can be used to change the default for any rules defined
+after it.
 
 Be very careful about the multiple return feature - it's easy to make things unpredictable.  If you're
 considering this, you may want different semantics for some control constructs, like [many].

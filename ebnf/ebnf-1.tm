@@ -3,7 +3,7 @@ source parser-1.tm
 Parser ebnf0 {
     %start  syntax
     %space            {\s*}   ;# tokens (and end) implicitly eat preceding whitespace
-    %token literal    {(?:'([^']*)')|(?:"([^"]*)")}                 ;#" - for vim
+    %token literal    {(?:'([^']*)')|(?:"([^"]*)")}
     %token identifier {[[:alnum:]_]+}
 
     %rule syntax      { opt title; token \{; many production; token \}; opt comment }
@@ -22,7 +22,7 @@ Parser ebnf0 {
 Parser ebnf- {
     %start  syntax
     %space            {\s*}   ;# tokens (and end) implicitly eat preceding whitespace
-    %token literal    {(?:'([^']*)')|(?:"([^"]*)")}                 {list token! $1$2}   ;#" - for vim
+    %token literal    {(?:'([^']*)')|(?:"([^"]*)")}                 {list token! $1$2}
     %token identifier {[[:alnum:]_]+}                               ;# default result = value
 
     %rule syntax      { opt title; token \{; many production; token \}; opt comment }   {list Parser $1 $2}
