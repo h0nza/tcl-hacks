@@ -144,7 +144,74 @@ namespace eval record {
     }
 
     # cmdsplit splits a Tcl script into a list of commands and comments
+    # this version uses [regexp -indices] in the foolish hope that 
+    # [string range] can be cheaper than [append].
     proc cmdsplit {script} {
+        set re {[;\n]|$}
+        set is [regexp -inline -all -indices $re $script]
+        lappend is [lrepeat 2 [string length $script]]
+        set res {}
+        set i 0
+        set hash [regexp -start $i {\A\s*#} $script]
+        foreach jj $is {
+            lassign $jj j0 j1
+            set sep [string index $script $j0]
+            if {$hash && $sep eq ";"} continue          ;# semicolon in comment
+            set part [string range $script $i $j0-1]
+            if {[info complete $part\n]} {
+                set part [string trimleft $part]
+                if {$part ne "" && !$hash} {            ;# skip comments
+                    lappend res $part
+                }
+                set i [expr {1+$j1}]
+                set hash [regexp -start $i {\A\s*#} $script]
+            }
+            set part ""
+        }
+        return $res
+    }
+
+if 0 {  ;# wiki version factored to split only once using [regexp]
+    proc cmdsplit {script} {
+        set chunk {}
+        set commands {}
+        set re { ^
+                 ( \s* )        # leading whitespace
+                 ( [^;\n]* )    # command
+                 ( [;\n]|$ )    # terminator or end-of-string
+                 (.*)           # the rest }
+        while {$script != ""} {
+            regexp -expanded $re $script -> space part sep script
+            if {$chunk ne ""} {append chunk $space}
+            append chunk $part
+            if {![info complete $chunk\n]} {
+                append chunk $sep
+                continue
+            }
+            if {$chunk eq ""} {
+                continue    ;# empty command
+            }
+            if {[string match #* $chunk] && $sep eq ";"} {  ;# skip comments
+                continue    ;# semicolon in comment!
+            }
+            if {![string match #* $chunk]} {
+                lappend commands $chunk
+            }
+            set chunk {}
+        }
+        if {![string is space $chunk]} {
+            throw {PARSE ERROR} "Can't parse script into a sequence of commands:\n\
+                                \tIncomplete command:\n\
+                                -----\n\
+                                $chunk\n\
+                                -----"
+        }
+        return $commands
+    }
+}
+
+if 0 {  ;# more or less original from the wiki
+    proc cmdSplit {script} {
         set chunk {}
         set commands {}
         foreach line [split $script \n] {
@@ -185,6 +252,7 @@ namespace eval record {
         }
         return $commands
     }
+}
 
     # wordsplit splits a Tcl command into a list of its constituent (unevaluated) words
     proc wordsplit {cmd} {
@@ -221,31 +289,11 @@ namespace eval record {
     #            [string toupper $who] }}}
     #   {{Hello, %s!\n} world WORLD}
     #
-    proc lsub script {              ;# [sl] from the wiki
-        # FIXME: this breaks badly on semicolons
-        set res {}
-        set parts {}
-        foreach part [split $script \n] {
-            lappend parts $part
-            set part [join $parts \n]
-            #add the newline that was stripped because it can make a difference
-            if {[info complete $part\n]} {
-                set parts {}
-                set part [string trim $part]
-                if {$part eq {}} {
-                    continue
-                }
-                if {[string index $part 0] eq {#}} {
-                    continue
-                }
-                #Here, the double-substitution via uplevel is intended!
-                lappend res {*}[uplevel list $part]
-            }
-        }
-        if {$parts ne {}} {
-            error [list {incomplete parts} [join $parts]]
-        }
-        return $res
+    proc lsub script {              ;# aka [sl], [larg] ...
+        concat {*}[lmap part [cmdsplit $script] {
+            if {[string match #* $part]} continue
+            uplevel 1 list $part
+        }]
     }
 
     # llsub is lsub's simpler big brother.  It tokenises its argument according to
@@ -256,30 +304,10 @@ namespace eval record {
     # This proc is a one-token change from lsub, but provided in full for
     # easy bytecoding.
     proc llsub script {              ;# tiny derivation from [lsub]
-        # FIXME: this breaks badly on semicolons
-        set res {}
-        set parts {}
-        foreach part [split $script \n] {
-            lappend parts $part
-            set part [join $parts \n]
-            #add the newline that was stripped because it can make a difference
-            if {[info complete $part\n]} {
-                set parts {}
-                set part [string trim $part]
-                if {$part eq {}} {
-                    continue
-                }
-                if {[string index $part 0] eq {#}} {
-                    continue
-                }
-                #Here, the double-substitution via uplevel is intended!
-                lappend res [uplevel list $part]    ;# the difference!  (no {*})
-            }
+        lmap part [cmdsplit $script] {
+            if {[string match #* $part]} continue
+            uplevel 1 list $part
         }
-        if {$parts ne {}} {
-            error [list {incomplete parts} [join $parts]]
-        }
-        return $res
     }
 
     # The named _args variable must have all requireds, and all keys must be in requireds OR defaults.
@@ -363,6 +391,7 @@ if 0 {
         puts [list $cmd [llength $parts] $subs]
     }
 }
+
 package require tests
 tests {
     test record::wordsplit-1 "wordsplit" -body {
@@ -375,4 +404,11 @@ tests {
                 froot\ 
                 bars
                 bla[e {oo]}]lll}
+    test record::cmdsplit-1 "cmdsplit" -body {
+        record::cmdsplit [string cat "foo bar ; foo \\; bar ; foo \\\n" \
+                                     "bar \\\\; foo \\\\\\; bar \\\\\n" \
+                                     "# bar foo ; \\\n" \
+                                     " bar foo \n" \
+                                     "foo bar"]
+    } -result {{foo bar } {foo \; bar } foo\ \\\nbar\ \\\\ {foo \\\; bar \\} {foo bar}}
 }
