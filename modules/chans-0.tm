@@ -7,7 +7,7 @@ pkg chans {
             fconfigure $what -buffering none -translation binary
             info procs
         }
-        proc finalize {what x }          { }
+        proc finalize {what x}           { }
         proc write {what x data}         { 
             puts -nonewline $what $data
             chan flush $what
@@ -28,6 +28,19 @@ pkg chans {
             puts -nonewline $what $data
             chan flush $what
             return ""
+        }
+        proc flush {what x}              { }
+        namespace export *
+        namespace ensemble create -parameters what
+    }
+
+    namespace eval pipe {
+        proc initialize {what x mode}    {
+            info procs
+        }
+        proc finalize {what x}           { }
+        proc write {what x data}         { 
+            uplevel 0 $what [list $data]
         }
         proc flush {what x}              { }
         namespace export *
