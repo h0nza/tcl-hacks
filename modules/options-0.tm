@@ -2,6 +2,11 @@
 
 # neat little options/arguments parser I apparently wrote.
 # commented sections are questionable support for validation of arguments (not opts - conflicts with multi-value form).
+#
+# Crazy ideas:
+#   composition of interfaces:  {-quickly -with alacrity} make it tricky and benefiting from [prefix match] requires a model
+
+package require fun
 
 namespace eval options {
 
@@ -10,7 +15,175 @@ namespace eval options {
         tailcall return {*}$args -code error -errorcode $code $msg
     }
 
+    proc ?- {option} {          ;# [?- quickly ] == $quickly ? "-quickly" : ""
+        upvar 1 $option opt
+        if {$opt} {
+            return [list -$opt]
+        } else {
+            return ""
+        }
+    }
+
+    proc lshift {varName} {     ;# removes & returns first element of $varName, or throws {LSHIFT EMPTY}
+        upvar 1 $varName list
+        if {$list eq ""} {
+            throw {LSHIFT EMPTY} "Attempted to shift empty list!"
+        }
+        set list [lassign $list result]
+        return $result
+    }
+
+
+    # taking each optspec as an argument is {convenient}, but options really wants .. options!
+    #  options ?-args args? ?-exact|-error x|-message y? optspec
+    #
+    # An optspec is a list of lists describing options.
+    #
+    #   eatopts {
+    #     {-quickly} 
+    #     {-with ease} 
+    #     {-by road tram walk}
+    #   }
+    #
+    # declares three options and their corresponding variables, "quickly", "with" and "by".
+    # $quickly will be 1 if "-quickly" is provided, else 0.
+    # "-with" takes an extra argument, and has default value "ease".
+    # "-by" takes an argument that must be one of {road tram walk}.  If not provided, $by eq "road".
+    #
+    # An optspec list can contain "--", indicating that if "--" is seen options processing should stop 
+    # and remaining arguments be left in "argsvar".
+    #
+    proc eatopts {args} {
+        set optspec [lindex $args end]
+        set argv [lrange $args 0 end-1]
+
+        # parse our own options, first-principles style
+        set _opts {args args message "option" error {-errorcode {TCL WRONGARGS}} exact 0 script 0}
+        set keys [lsort -dictionary [lmap o [dict keys $_opts] {string cat - $o}]]
+        dict with _opts {
+            while {$argv ne ""} {
+                set arg [lshift argv]
+                switch -exact [::tcl::prefix::match -error {-errorcode {TCL WRONGARGS}} -message option $keys $arg] {
+                    -args       { set args      [lshift argv] }
+                    -message    { set message   [lshift argv] }
+                    -error      { set error     [lshift argv] }
+                    -script     { set script    1 }
+                    -exact      { set exact     1 }
+                }
+            }
+        }
+        unset _opts
+
+        # our version:
+        #   eatopts {  {-args args}  {-message option}  {-error {-errorcode TCL WRONGARGS}}  -exact  }
+
+        # We will fill in this template to match, with care to create no named temporaries.
+        # Using [subst -noc] should keep us honest.
+        set MACRO {
+            $DEFAULTS
+            while {\$args ne ""} {
+                switch -exact [::tcl::prefix::match -error $ERROR -message $MESSAGE $KEYS [::options::lshift args]] {
+                    $SWITCH
+                    -- break
+                }
+            }
+        }
+
+        foreach spec $optspec {
+            set spec [lassign $spec opt]
+            lappend KEYS $opt
+            if {$opt eq "--"} continue          ;# special-cased in macro.
+            set name [string range $opt 1 end]
+            switch -exact [llength $spec] {
+                0 {             ;#  {-flag}: consumes no args, boolean $flag
+                    append DEFAULTS [list set $name 0]\;
+                    lappend SWITCH $opt [format {
+                                incr %s 1
+                    } [list $name]]
+                }
+                1 {             ;# {-option default}: consumes an arg
+                    set default [lindex $spec 0]
+                    append DEFAULTS [list set $name $default]\;
+                    lappend SWITCH $opt [format {
+                            set %s [::options::lshift args]
+                    } [list $name]]
+                }
+                default {       ;# {-enum red green blue}: default first
+                    set default [lindex $spec 0]
+                    set values [lsort -dictionary $spec]
+                    append DEFAULTS [list set $name $default]\;
+                    lappend SWITCH $opt [format {
+                            set %s [::tcl::prefix match \
+                                    -error {-errorcode {TCL WRONGARGS}} \
+                                    -message %s \
+                                    %s [::options::lshift args]]
+                    } [list $name] [list [format {value for "%s"} $opt]] [list $values]]
+                }
+            }
+        }
+
+        set KEYS        [list   [lsort -dictionary $KEYS]]
+        set MESSAGE     [list   $message]
+        set ERROR       [list   $error]
+        set SCRIPT [subst -nocommands $MACRO]
+        if {$script} {
+            return $SCRIPT
+        }
+        tailcall try $SCRIPT
+    }
+
+    # -eat: boolean
+    # -with fire: defaulted free
+    # -by tram boat bike: defaulted enum
     proc options {args} {
+        set R [dict create]     ;# result goes here
+        set specs {}
+        foreach optspec $args {
+            set spec [lassign $optspec opt]
+            set name [string range $opt 1 end]
+            switch [llength $spec] {
+                0       { set default 0 }
+                1       { set default [lindex $spec 0] }
+                default {
+                    set default [lindex $spec 0]
+                    set spec [lsort -dictionary $spec]  ;# only length matters!
+                }
+            }
+            dict set specs $opt $spec
+            dict set R $name $default
+        }
+        set keys [lsort -dictionary [dict keys $specs]]
+
+        # get caller's args
+        upvar 1 args argv
+        while {$argv ne ""} {
+            # FIXME: this is a dramatic flaw in the way I've been using [options]!
+            if {![string match -* [lindex $argv 0]]} {
+                break
+            }
+            set arg [lshift argv]
+            set opt [::tcl::prefix match \
+                        -error {-errorcode {TCL WRONGARGS}} \
+                        -message "option" \
+                        $keys $arg]
+            set spec [dict get $specs $opt]
+            set name [string range $opt 1 end]
+            switch [llength $spec] {
+                0       { set val 1 }
+                1       { set val [lshift argv] }
+                default { set val [::tcl::prefix match \
+                                -error {-errorcode {TCL WRONGARGS}} \
+                                -message "value for $opt" \
+                                $spec [lshift argv]]
+                }
+            }
+            dict set R $name $val
+        }
+        dict set R args $argv
+        tailcall mset {*}$R
+    }
+
+    proc --options {args} {
         # parse optspec
         foreach optspec $args {
             set name [lindex $optspec 0]
@@ -29,11 +202,12 @@ namespace eval options {
                 default {
                     dict set opts $name type 2 ;# choice
                     dict set opts $name default [lindex $optspec 1]
-                    dict set opts $name values [lrange $optspec 1 end]
+                    dict set opts $name values [lsort -dictionary [lrange $optspec 1 end]]
                     dict set result [string range $name 1 end] [lindex $optspec 1]
                 }
             }
         }
+        set keys [lsort -dictionary [dict keys $opts]]
         # get caller's args
         upvar 1 args argv
         for {set i 0} {$i<[llength $argv]} {} {
@@ -45,45 +219,29 @@ namespace eval options {
             if {$arg eq "--"} {
                 break
             }
-            set candidates [dict filter $opts key $arg*]
-            switch [dict size $candidates] {
-                0 {
-                    tailcall chuck {TCL WRONGARGS} "Unknown option $arg: must be one of [dict keys $opts]"
+            set name [::tcl::prefix match {*}{
+                        -error {-errorcode {TCL WRONGARGS}} 
+                        -message "option"
+                    } $keys $arg]
+            set spec [dict get $opts $name]
+            set name [string range $name 1 end]
+            dict with spec {} ;# look out
+            if {$type==0} {
+                dict set result $name 1
+                #dict set opts $name value 1
+            } else {
+                if {[llength $argv]<($i+1)} {
+                    tailcall chuck {TCL WRONGARGS} "Option $name requires a value"
                 }
-                1 {
-                    dict for {name spec} $candidates {break}
-                    set name [string range $name 1 end]
-                    dict with spec {} ;# look out
-                    if {$type==0} {
-                        dict set result $name 1
-                        #dict set opts $name value 1
-                    } else {
-                        if {[llength $argv]<($i+1)} {
-                            tailcall chuck {TCL WRONGARGS} "Option $name requires a value"
-                        }
-                        set val [lindex $argv $i]
-                        if {$type==2} {
-                            # FIXME:?  ::tcl::prefix match -message $name
-                            set is [lsearch -all -glob $values $val*]
-                            switch [llength $is] {
-                                1 {
-                                    set val [lindex $values $is]
-                                }
-                                0 {
-                                    tailcall chuck {TCL WRONGARGS} "Bad $name \"$val\": must be one of $values"
-                                }
-                                default {
-                                    tailcall chuck {TCL WRONGARGS} "Ambiguous $name \"$val\": could be any of [lmap i $is {lindex $values $i}]"
-                                }
-                            }
-                        }
-                        dict set result $name $val
-                        incr i
-                    }
+                set val [lindex $argv $i]
+                if {$type == 2} {
+                    set val [::tcl::prefix match \
+                                -error {-errorcode {TCL WRONGARGS}} \
+                                -message "value for -$name" \
+                                $values $val]
                 }
-                default {
-                    tailcall chuck {TCL WRONGARGS} "Ambiguous option $arg: maybe one of [dict keys $candidates]"
-                }
+                dict set result $name $val
+                incr i
             }
         }
         dict set result args [lrange $argv $i end]
@@ -206,7 +364,7 @@ namespace import options::*
 if {![info exists ::argv0] || $::argv0 ne [info script]} {
     return
 }
-tcl::tm::path add [pwd]
+#tcl::tm::path add [pwd]
 package provide options 0
 package require tests
 
@@ -332,4 +490,33 @@ tests {
 
         e = wrong # args: should be "t rabbit ?poo? ?args ...?"
     }]]\n
+
+    set setup {
+        proc t {args} {
+            options {-quickly} {-with ease alacrity charm alarm} {-willingly yes}
+            list quickly $quickly with $with willingly $willingly
+        }
+    }
+    set cleanup {
+        rename t {}
+    }
+    test options-1.1 {basic options test} -setup $setup -cleanup $cleanup -body {
+        t
+    } -result {quickly 0 with ease willingly yes}
+    test options-1.2 {basic options test} -setup $setup -cleanup $cleanup -body {
+        t -with charm
+    } -result {quickly 0 with charm willingly yes}
+    test options-1.3 {basic options test} -setup $setup -cleanup $cleanup -body {
+        t -with alar
+    } -result {quickly 0 with alarm willingly yes}
+
+    test options-1.4 {basic options test} -setup $setup -cleanup $cleanup -body {
+        list [catch {t -wi} e o] $e [dict get $o -errorcode]
+    } -result {1 {ambiguous option "-wi": must be -quickly, -willingly, or -with} {TCL WRONGARGS}}
+    # {} -result {1 {ambiguous option "-wi": must be -quickly, -with, or -willingly} {TCL WRONGARGS}}
+    test options-1.5 {basic options test} -setup $setup -cleanup $cleanup -body {
+        list [catch {t -with a} e o] $e [dict get $o -errorcode]
+    } -result {1 {ambiguous value for -with "a": must be alacrity, alarm, charm, or ease} {TCL WRONGARGS}}
 }
+
+#puts [options::eatopts -script -exact {{-quickly} {-with ease alacrity charm alarm} {-willingly yes}}]
