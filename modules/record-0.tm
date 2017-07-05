@@ -50,6 +50,14 @@
 #   {id1 {id id1 field value field1 {} field2 {}}
 #    id2 {id id2 field1 default field2 value2 field3 42}}
 #
+# A useful morph of [${name}::table] would be helpers for maintaining a mutable dict:
+#   [${name}::create varName id -field1 ...]
+#   [${name}::update varName id -field1 ...]
+#   [${name}::get varName id ?-field?]
+#   [${name}::unset varName id ?-field?]
+#
+# Binding an array through write traces could be pretty neat too.
+
 namespace eval record {
     # name  - the namespace in which to create the new record
     # id    - the key that acts as an identifier

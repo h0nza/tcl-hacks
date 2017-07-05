@@ -77,4 +77,6 @@ proc cerror {cint msg} {
     interp invokehidden $cint return -code error "$msg!\n  at $ctx"
 }
 
-puts [loadconf test.conf]
+foreach filename $::argv {
+    puts [loadconf $filename]
+}

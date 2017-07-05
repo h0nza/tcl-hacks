@@ -1,0 +1,37 @@
+## FROM CAM350:
+
+G04 CAM350 V9.5 (Build 208) Date:  Wed Jul 20 17:24:11 2016 *
+G04 Database: c:\documents and settings\administrator\×ÀÃæ\untitled.cam *
+G04 Layer 4: fluoresensor-Ed *
+%FSLAX25Y25*%
+%MOIN*%
+%SFA1.000B1.000*%
+
+%MIA0B0*%
+%IPPOS*%
+%ADD27C,0.00591*%
+%LNfluoresensor-Ed*%
+%LPD*%
+G54D27*
+X344488Y-295276D02*
+G75*
+G03X344488Y-295276I-49213D01*
+M02*
+
+## FROM KICAD:
+
+G04 #@! TF.FileFunction,Profile,NP*
+%FSLAX46Y46*%
+G04 Gerber Fmt 4.6, Leading zero omitted, Abs format (unit mm)*
+G04 Created by KiCad (PCBNEW 4.0.2+e4-6225~38~ubuntu16.04.1-stable) date tor 14 jul 2016 16:49:28*
+%MOMM*%
+G01*
+G04 APERTURE LIST*
+%ADD10C,0.100000*%
+%ADD11C,0.150000*%
+G04 APERTURE END LIST*
+D11*
+X87500000Y-75000000D02*
+G75*
+G03X87500000Y-75000000I-12500000J0D01*
+M02*
