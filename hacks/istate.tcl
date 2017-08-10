@@ -18,7 +18,7 @@ namespace eval istate {
     }
 
     proc sldiff {as bs} {
-        set res {}
+        set res {- "" + ""}
         try {
             set a {}; set b {}
             while 1 {
@@ -63,7 +63,9 @@ namespace eval istate {
         return $res
     }
 
-    proc watch {ms args} {
+    # interactively watch changes:
+    #   coroutine co#watch watch 2000 stdout        ;# report every 2s on stdout
+    proc watch {ms {chan stdout} args} {
         set old_state [inspect {*}$args]
         while 1 {
             after $ms [info coroutine]
@@ -72,26 +74,31 @@ namespace eval istate {
             set new_state [inspect {*}$args]
             set cmds [sldiff [dict get $old_state cmds] [dict get $new_state cmds]]
             set vars [sldiff [dict get $old_state vars] [dict get $new_state vars]]
-            if {$cmds ne ""} {
-                pdict $cmds $now:cmds
-            }
-            if {$vars ne ""} {
-                pdict $vars $now:vars
-            }
             set old_state $new_state
+
+            if {[set ls [dict get $cmds -]] ne ""} { puts $chan "$now cmds - $ls" }
+            if {[set ls [dict get $cmds +]] ne ""} { puts $chan "$now cmds + $ls" }
+            if {[set ls [dict get $vars -]] ne ""} { puts $chan "$now vars - $ls" }
+            if {[set ls [dict get $vars +]] ne ""} { puts $chan "$now vars + $ls" }
         }
     }
 }
 
 
 if {[info script] eq $::argv0} {
+    proc finally {script} {
+        tailcall trace add variable :#finally#: unset [list apply [list args $script]]
+    }
+
     proc repl {cmdPrefix {in stdin} {out ""} {err ""}} {
         if {$out eq ""} {set out $in}
         if {$err eq ""} {set err $out}
         if {$out eq "stdin"} {set out "stdout"}
         if {$err eq "stdin"} {set err "stderr"}
-        chan configure $in -blocking 0
+        chan configure $in -blocking 0 -buffering line
+        set oldev [chan event $in readable]
         chan event $in readable [info coroutine]
+        finally [list chan event $in readable $oldev]
         set command ""
         while 1 {
             if {$command eq ""} {
@@ -100,11 +107,12 @@ if {[info script] eq $::argv0} {
                 puts -nonewline $out "- "; flush $out
             }
             yield
-            append command [read $in]
-            if {$command eq "" && [eof $in]} {
+            set chunk [gets $in]
+            if {$chunk eq "" && [eof $in]} {
                 break
             }
-            if {$command ne "" && [info complete $command]} {
+            append command \n$chunk
+            if {![string is space $command] && [info complete $command]} {
                 set rc [catch {{*}$cmdPrefix $command} result opts]
                 if {$rc == 0} {
                     {*}$cmdPrefix [list set _ $result]
@@ -119,6 +127,6 @@ if {[info script] eq $::argv0} {
 
     coroutine co#watch istate::watch 2000
     coroutine co#repl repl ::eval stdin
-    trace add command co#repl delete exit
+    trace add command co#repl delete {apply {args exit}}
     vwait forever
 }

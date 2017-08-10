@@ -155,7 +155,7 @@ namespace eval every {
                     dict unset Cancel $id
                     dict unset Paused $id   ;# to be safe
                 } on continue {r o} {
-                    if {$r ne ""} {
+                    if {[string is integer -strict $r]} {
                         set interval $r     ;# support [continue newIntervalMilliseconds]
                     }
                 } on error {e o} {
