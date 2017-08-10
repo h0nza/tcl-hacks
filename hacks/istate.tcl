@@ -1,18 +1,11 @@
 namespace eval istate {
     namespace export {[a-z]*}
 
-    proc tclose {cmdPrefix seed} {
-        set stack [list $seed]
-        #puts "Starting with $seed .."
-        for {set i 0} {$i < [llength $stack]} {incr i} {
-            set el [lindex $stack $i]
-            set kids [map {tclose $cmdPrefix} [{*}$cmdPrefix $el]]
-            set kids [concat {*}$kids]
-            set kids [ldiff $kids $stack]   ;# avoid cycles
-            lappend stack {*}$kids
-            #lappend stack {*}[concat {*}[map {tclose $cmdPrefix} [{*}$cmdPrefix $el]]]
-        }
-        set stack
+    proc putl args {puts $args}
+
+    proc pdict {_ {name ""}} {
+        array set $name $_
+        parray $name
     }
 
     proc lshift {varName} {
@@ -22,6 +15,33 @@ namespace eval istate {
         }
         set ls [lassign $ls r]
         return $r
+    }
+
+    proc sldiff {as bs} {
+        set res {}
+        try {
+            set a {}; set b {}
+            while 1 {
+                while {$a eq $b} {
+                    if {$as eq {} || $bs eq {}} {throw {LSHIFT EMPTY} ""}
+                    set a [lshift as]
+                    set b [lshift bs]
+                    continue
+                }
+                while {[string compare $a $b] < 0} {
+                    dict lappend res - $a
+                    set a [lshift as]
+                }
+                while {[string compare $a $b] > 0} {
+                    dict lappend res + $b
+                    set b [lshift bs]
+                }
+            }
+        } trap {LSHIFT EMPTY} {} {
+            if {$as ne ""} {dict lappend res - {*}$as}
+            if {$bs ne ""} {dict lappend res + {*}$bs}
+        }
+        return $res
     }
 
     proc inspect args {
@@ -42,5 +62,63 @@ namespace eval istate {
         }
         return $res
     }
+
+    proc watch {ms args} {
+        set old_state [inspect {*}$args]
+        while 1 {
+            after $ms [info coroutine]
+            yield
+            set now [clock seconds]
+            set new_state [inspect {*}$args]
+            set cmds [sldiff [dict get $old_state cmds] [dict get $new_state cmds]]
+            set vars [sldiff [dict get $old_state vars] [dict get $new_state vars]]
+            if {$cmds ne ""} {
+                pdict $cmds $now
+            }
+            if {$vars ne ""} {
+                pdict $vars $now
+            }
+            set old_state $new_state
+        }
+    }
 }
 
+
+if {[info script] eq $::argv0} {
+    proc repl {cmdPrefix {in stdin} {out ""} {err ""}} {
+        if {$out eq ""} {set out $in}
+        if {$err eq ""} {set err $out}
+        if {$out eq "stdin"} {set out "stdout"}
+        if {$err eq "stdin"} {set err "stderr"}
+        chan configure $in -blocking 0
+        chan event $in readable [info coroutine]
+        set command ""
+        while 1 {
+            if {$command eq ""} {
+                puts -nonewline $out "% "; flush $out
+            } else {
+                puts -nonewline $out "- "; flush $out
+            }
+            yield
+            append command [read $in]
+            if {$command eq "" && [eof $in]} {
+                break
+            }
+            if {$command ne "" && [info complete $command]} {
+                set rc [catch {{*}$cmdPrefix $command} result opts]
+                if {$rc == 0} {
+                    {*}$cmdPrefix [list set _ $result]
+                    puts $out $result
+                } else {
+                    puts $err "\[$rc\]: $result"
+                }
+                set command ""
+            }
+        }
+    }
+
+    coroutine co#watch istate::watch 2000
+    coroutine co#repl repl ::eval stdin
+    trace add command co#repl delete exit
+    vwait forever
+}
