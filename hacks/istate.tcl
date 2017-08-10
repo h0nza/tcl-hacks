@@ -73,10 +73,10 @@ namespace eval istate {
             set cmds [sldiff [dict get $old_state cmds] [dict get $new_state cmds]]
             set vars [sldiff [dict get $old_state vars] [dict get $new_state vars]]
             if {$cmds ne ""} {
-                pdict $cmds $now
+                pdict $cmds $now:cmds
             }
             if {$vars ne ""} {
-                pdict $vars $now
+                pdict $vars $now:vars
             }
             set old_state $new_state
         }
