@@ -1,4 +1,8 @@
 # meta-framework for command language interfaces
+proc finally {script} {
+    tailcall trace add variable :#finally#: unset [list apply [list args $script]]
+}
+
 proc args {argspec} {
     upvar 1 args args
     tailcall apply [list $argspec {tailcall mset {*}[locals]}] {*}$args
@@ -61,7 +65,9 @@ proc repl {cmdPrefix {in stdin} {out ""} {err ""}} {
     if {$out eq "stdin"} {set out "stdout"}
     if {$err eq "stdin"} {set err "stderr"}
     chan configure $in -blocking 0
+    set oldev [chan event $in readable]
     chan event $in readable [info coroutine]
+    finally [list chan event $in readable $oldev]
     set command ""
     while 1 {
         if {$command eq ""} {
@@ -70,11 +76,12 @@ proc repl {cmdPrefix {in stdin} {out ""} {err ""}} {
             puts -nonewline $out "- "; flush $out
         }
         yield
-        append command [read $in]
+        set chunk [gets $in]
         if {$command eq "" && [eof $in]} {
             break
         }
-        if {$command ne "" && [info complete $command]} {
+        append command \n$chunk
+        if {![string is space $command] && [info complete $command]} {
             set rc [catch {{*}$cmdPrefix $command} result opts]
             if {$rc == 0} {
                 {*}$cmdPrefix [list set _ $result]
