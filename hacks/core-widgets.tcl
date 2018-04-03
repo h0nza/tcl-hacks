@@ -60,16 +60,44 @@ puts [join [lsort $widgets] \n]
 foreach w $widgets {
     destroy .test
     $w .test
-    set class($w) [winfo class .test]
+    set cls [winfo class .test]
+    set class($w) $cls
+    if {[bindtags .test] ne [list .test $cls . all]} {
+        if {[bindtags .test] ne [list .test $cls all]} {
+            set bindtags($w) [bindtags .test]
+        }
+    }
     set opts [.test configure]
-    set opts [lmap o $opts {
-        expr {[llength $o] == 2 ? [continue] : [lindex $o 0]}   ;# skip aliases
-    }]
-    set opts [lsort -dictionary $opts]
-    set options($w) $opts
+    set opts {}
+    foreach o [.test configure] {
+        if {[llength $o] == 2} continue     ;# skip aliases
+        if {[llength $o] != 5} {
+            puts stderr "This is weird: $w $o has <>5 elements: $o"
+            continue
+        }
+        lassign $o option resource resclass default value
+        dict set opts $option $default
+    }
+    set opts [lsort -dictionary -stride 2 $opts]
+    set options($w) [dict keys $opts]
+    set defs [dict filter $opts value ?*]
+    if {$defs ne ""} {
+        set defaults($w) $defs
+    }
 }
+
+puts "** Widget Class **"
 parray class
-#parray options
-#
+
+puts "** Widget Options **"
+parray options
+
+puts "** Widget Options with Defaults **"
+parray defaults
+
+if {[info exists bindtags]} {
+    puts "** Bindtags **"
+    parray bindtags
+}
 
 exit
