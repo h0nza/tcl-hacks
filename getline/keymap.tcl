@@ -1,6 +1,6 @@
 namespace eval keymap {
 
-    variable map {
+    variable default_keymap {
         ^A  home
         ^B  back
         ^C  sigint
@@ -11,7 +11,7 @@ namespace eval keymap {
         ^H  backspace
         ^I  tab
         ^J  newline
-        ^K  kill-after
+        ^K  yank-after
         ^L  redraw
         ^M  newline
         ^N  history-next
@@ -21,9 +21,9 @@ namespace eval keymap {
         ^R  history-search
         ^S  scroll-lock
         ^T  transpose
-        ^U  kill-before
+        ^U  yank-before
         ^V  quote
-        ^W  yank-word
+        ^W  yank-word-before
         ^Y  paste
         ^Z  suspend
 
@@ -34,8 +34,8 @@ namespace eval keymap {
         ^X^U    undo
         ^X^X    swap-mark
 
-        ^[[A    history-prev
-        ^[[B    history-next
+        ^[[A    history-prev-starting
+        ^[[B    history-next-starting
         ^[[C    forth
         ^[[D    back
 
@@ -45,8 +45,10 @@ namespace eval keymap {
         ^[[7~   home
         ^[[8~   end
 
-        ^[^?    kill-word-before
-        ^[^[^?  kill-word-after
+        ^[^?    yank-word-before
+        ^[^[^?  yank-word-after
+        ^[d     yank-word-after
+        ^[^[[3~ yank-word-after
         ^[^[[C  forth-word
         ^[^[[D  back-word
 
@@ -54,8 +56,9 @@ namespace eval keymap {
         ^[f     forth-word
         ^[u     uppercase-word
         ^[l     lowercase-word
+        ^[t     transpose-words
         ^[g     complete-filename
-        ^[d     kill-to-end
+        ^[d     yank-after
         ^[p     ??
         ^[n     ??
     }
@@ -101,52 +104,51 @@ namespace eval keymap {
         return $res
     }
 
-    proc init {} {
-        variable map
-        variable trie
+    oo::class create KeyMapper {
+        variable Chan
+        variable KeyTrie
+        variable Map
+        constructor {chan {map .}} {
+            namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]
+            try {
+                dict size $map
+            } on error {} {
+                set map $::keymap::default_keymap
+            }
+            set Chan $chan
 
-        # turn keycodes into lists of bytes
-        set map [dict map {k v} $map {
-            set k [split [keycode $k] ""]
-            set v
-        }]
+            # turn keycodes into lists of bytes
+            set Map [dict map {k v} $map {
+                set k [split [keycode $k] ""]
+                set v
+            }]
 
-        # make a trie for gettok
-        set trie [mktrie [dict keys $map]]
-    }
-
-    proc getch {} {
-        yield
-        read stdin 1
-    }
-
-    # called with an optional list of input chars to start with
-    # returns either [list TOKEN $tokenname] or [list LITERAL [list $char...]]
-    proc gettok {{chars ""}} {
-        variable trie
-        variable map
-
-        # chars is a list of pre-buffered input
-        if {$chars eq ""} {
-            set state $trie
-        } else {
-            set state [dict get $trie {*}$chars]
+            # make a trie for gettok
+            set KeyTrie [mktrie [dict keys $Map]]
         }
 
-        while 1 {
-            if {$state eq ""} {
-                set tok [dict get $map $chars]
-                if {$tok eq "quote"} {
-                    return [list LITERAL [list [getch]]]
-                } else {
-                    return [list TOKEN $tok $chars]
+        method getch {} {
+            yield
+            read $Chan 1
+        }
+
+        method gettok {{chars ""}} {
+            set state [dict get $KeyTrie {*}$chars]
+            while 1 {
+                if {$state eq ""} {
+                    set tok [dict get $Map $chars]
+                    if {$tok eq "quote"} {
+                        return [list LITERAL "" [list [my getch]]]
+                    } else {
+                        return [list TOKEN $tok $chars]
+                    }
                 }
+                lappend chars [set c [my getch]]
+                if {![dict exists $state $c]} {
+                    return [list LITERAL "" $chars]
+                }
+                set state [dict get $state $c]
             }
-            lappend chars [set c [getch]]
-            if {![dict exists $state $c]} {
-                return [list LITERAL $chars]
-            }
-            set state [dict get $state $c]
         }
     }
 }

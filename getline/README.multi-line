@@ -1,0 +1,64 @@
+** the prompt needs to be held in getline and fed to input,
+** so input::reset can dtrt and so can getline::set-state
+
+Multi-line input is just single-line input where:
+ - newline when not Complete?, splits the line opens a new getline $prompt2
+ - each line must be able to report its displayrows (including prompt)
+ - change in displayrows must result in redraw of following lines
+ - excessive back/forth transitions between getlines
+ - up/down can cause transitions
+ - delete/rubout within multilines kills the current line and transitions
+
+Extra state:
+ - lines: list.  Curr line's value is imaginary.
+ - current-line: index into list.
+ - prompt2:   a suitable continuation prompt derived from prompt1
+
+.accept:     cursor down many display-rows, return [join $lines \n]
+.back:       if boi, transition-to-prior-line, goto end
+.forth:      if eoi, transition-to-next-line, goto home
+.erase:      if eoi, erase-at-eoi
+.backspace:  if boi, backspace-at-boi
+.up:         if lines-exist-before, save pos, transition-to-prior-line, goto saved-pos
+.down:       if lines-exist-after,  save pos, transition-to-next-line,  goto saved-pos
+
+.input-newline:
+ - split line at point, insert suffix into $lines
+ - redraw
+ - goto next line
+ - redraw-following
+
+.transition-to-prior-line:
+ - output::home
+ - state <- dest line
+ - go up display-rows
+ - redraw
+
+.transition-to-next-line:
+ - output::end
+ - state <- dest line
+ - go down 1
+ - redraw
+
+.erase-newline:
+ - input-append [kill next-line]
+ - redraw
+ - redraw-following
+
+.backspace-newline:
+ - state <- prev line
+ - go up display-rows
+ - output::end
+ - input-append [kill next-line]
+ - redraw
+ - redraw-following
+
+getline itself:
+ * on delta-rows:
+   - report upstream for redraw-following
+
+redraw-following:
+ - store current pos
+ - down display-rows (pos..end)
+ - draw-each-line
+ - up many display-rows + stashed delta
