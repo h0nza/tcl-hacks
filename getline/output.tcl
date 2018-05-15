@@ -127,4 +127,22 @@ oo::class create Output {
         my back $n
         my delete $n
     }
+
+    method beep {} {
+        my emit \x07
+    }
+    method flash-message {msg} {
+        variable flashid
+        catch {after cancel $flashid}
+        my emit [tty::save]
+        lassign [exec stty size] rows cols
+        my emit [tty::goto 0 [expr {$cols - [string length $msg] - 2}]]
+        my emit [tty::attr bold]
+        my emit " $msg "
+        my emit [tty::attr]
+        my emit [tty::restore]
+        if {[string is space $msg]} return
+        regsub -all . $msg " " msg
+        set flashid [after 1000 [list [self] flash-message $msg]]
+    }
 }

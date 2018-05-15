@@ -10,14 +10,15 @@
 #  x flash message
 #  x tcloo'ify
 #  x multi-line input (debug further)
+#   - fix line joinage: too much redraw by far
 #   - continuation prompts
 #   - multi-line redraw (just a keymap / action naming thing?)
 #  x fix up history
 #  x objectify keymap
-#  - work out lifetimes properly (long-lived Getline contains all other objs)
-#  - chan independence
+#  x -options to Getline, move history etc into components
+#  x chan independence
 #  - use throw for accept .. and beep?
-#  - prefix keymaps (eg: ^L=redraw-line; ^L^L=redraw-all-lines)
+#  ? prefix keymaps (eg: ^L=redraw-line; ^L^L=redraw-all-lines)
 #  - history-incremental-search .. this is a mode!
 #  - output attrs
 #  - completion ... with ui!
@@ -46,35 +47,6 @@ proc alias {alias cmd args} {
     set ns [uplevel 1 {namespace current}]
     set cmd [uplevel 1 namespace which $cmd]
     interp alias ${ns}::$alias $cmd {*}$args
-}
-
-package require sqlite3
-sqlite3 db {}
-
-keymap::KeyMapper create keymap stdin
-History create history
-Input create input
-Output create output stdout
-
-proc beep {msg} {
-    puts -nonewline \x07
-    flash-message $msg
-}
-
-# probably belongs to output
-proc flash-message {msg} {
-    variable flashid
-    catch {after cancel $flashid}
-    output emit [tty::save]
-    lassign [exec stty size] rows cols
-    output emit [tty::goto 0 [expr {$cols - [string length $msg] - 2}]]
-    output emit [tty::attr bold]
-    output emit " $msg "
-    output emit [tty::attr]
-    output emit [tty::restore]
-    if {[string is space $msg]} return
-    regsub -all . $msg " " msg
-    set flashid [after 1000 [list flash-message $msg]]
 }
 
 proc rep {c} {
@@ -110,22 +82,91 @@ proc word-length-after {s i} {
 #
 oo::class create Getline {
 
+    # state:
     variable Yank
-    variable Prompt
 
-    constructor {pr} {  ;# input output history iscomplete accept? completer
+    # options:
+    variable Prompt
+    variable Chan
+    method Complete? {input} { info complete $input\n }
+    method Completions {s}   { return "" }
+    method History {args} {
+        History create History
+        oo::objdefine [self] forward History History
+        tailcall my History {*}$args
+    }
+
+    constructor {args} {
         set Yank ""
-        set Prompt $pr
+        set Prompt "getline> "
+        set Chan stdout
+
+        my Configure {*}$args
+
+        Input create             input
+        Output create            output $Chan
+        keymap::KeyMapper create keymap [expr {$Chan eq "stdout" ? "stdin" : $Chan}]
+
         input reset
         output reset $Prompt
     }
 
+    method Configure {args} {
+        set OptSpec {
+            -prompt     { set Prompt $val }
+            -chan       { set Chan $val }
+            -history    { oo::objdefine [self] forward History [uplevel 1 [list namespace which $val]] }
+            -iscomplete { oo::objdefine [self] forward Complete? [uplevel 1 [list namespace which $val]] }
+            -completer  { oo::objdefine [self] forward Completions [uplevel 1 [list namespace which $val]] }
+        }
+
+        dict for {opt val} $args {
+            set pat $opt*
+            set matched 0
+            dict for {key script} $OptSpec {
+                if {[string match $pat* $opt]} {
+                    try $script
+                    set matched 1
+                    break
+                }
+            }
+            if {!$matched} {
+                return -code error "Unknown option; expected one of [join [dict keys $OptSpec] ", "]."
+            }
+        }
+    }
+
+    method getline {} {
+        set cmds [info object methods [self] -all]
+
+        while 1 {
+            # {TOKEN tok {c c c}} or {LITERAL "" {c c c}}
+            lassign [keymap gettok] kind tok chars
+            if {$kind eq "TOKEN"} {
+                try {
+                    engine $tok
+                    continue
+                } trap {TCL LOOKUP METHOD *} {} { }
+            }
+            foreach char $chars {
+                engine insert $char
+            }
+            # if [getline display-rows] has changed, redraw-following
+        }
+    }
+
+    method beep {msg} {
+        output beep
+        if {$msg ne ""} {tailcall output flash-message $msg}
+    }
+
+    # action methods:
     method get {} {
         input get
     }
 
     method sigpipe {} {
-        if {[input get] ne ""}  { beep "sigpipe with [string length [input get]] chars"; return }
+        if {[input get] ne ""}  { my beep "sigpipe with [string length [input get]] chars"; return }
         return -level 2 -code break
     }
     method sigint {}      { return -level 2 -code continue }
@@ -148,14 +189,14 @@ oo::class create Getline {
 
     method back {{n 1}} {
         if {$n == 0} return
-        if {[input pos] < 1} {beep "back at BOL"; return}
+        if {[input pos] < 1} {my beep "back at BOL"; return}
         set n [expr {min($n, [input pos])}]
         if {$n == 0} return
         output back [string length [srep [input back $n]]]
     }
     method forth {{n 1}} {
         if {$n == 0} return
-        if {[input rpos] < 1} {beep "forth at EOL"; return}
+        if {[input rpos] < 1} {my beep "forth at EOL"; return}
         set n [expr {min($n, [input rpos])}]
         if {$n == 0} return
         output forth [string length [srep [input forth $n]]]
@@ -163,7 +204,7 @@ oo::class create Getline {
 
     method backspace {{n 1}} {
         if {$n == 0} return
-        if {[input pos] < 1} {beep "backspace at BOL"; return}
+        if {[input pos] < 1} {my beep "backspace at BOL"; return}
         set n [expr {min($n, [input pos])}]
         if {$n == 0} return
         set in [input backspace $n]
@@ -172,7 +213,7 @@ oo::class create Getline {
     }
     method delete {{n 1}} {
         if {$n == 0} return
-        if {[input rpos] < 1} {beep "delete at EOL"; return}
+        if {[input rpos] < 1} {my beep "delete at EOL"; return}
         set n [expr {min($n, [input rpos])}]
         if {$n == 0} return
         set in [input delete $n]
@@ -218,27 +259,27 @@ oo::class create Getline {
     # softbreak tab
 
     method history-prev {} {
-        set s [history prev [my get]]
-        if {$s eq ""}   { beep "no more history!"; return }
+        set s [my History prev [my get]]
+        if {$s eq ""}   { my beep "no more history!"; return }
         my replace-input $s
     }
     method history-next {} {
-        set s [history next [my get]]
-        if {$s eq ""}   { beep "no more history!"; return }
+        set s [my History next [my get]]
+        if {$s eq ""}   { my beep "no more history!"; return }
         my replace-input $s
     }
     method history-prev-starting {} {
         set pos [input pos]
-        set s [history prev-starting [input pre] [my get]]
-        if {$s eq ""}   { beep "no more matching history!"; return }
+        set s [my History prev-starting [input pre] [my get]]
+        if {$s eq ""}   { my beep "no more matching history!"; return }
         my kill-after
         my insert [string range $s $pos end]
         my goto $pos
     }
     method history-next-starting {} {
         set pos [input pos]
-        set s [history next-starting [input pre] [my get]]
-        if {$s eq ""}   { beep "no more matching history!"; return }
+        set s [my History next-starting [input pre] [my get]]
+        if {$s eq ""}   { my beep "no more matching history!"; return }
         my kill-after
         my insert [string range $s $pos end]
         my goto $pos
@@ -246,7 +287,7 @@ oo::class create Getline {
 
     method accept {} {
         set input [my get]
-        if {![string is space $input]}  { history add $input }
+        if {![string is space $input]}  { my History add $input }
         my end
         output emit \n
         return -code return $input  ;# FIXME: forcing [tailcall accept] is terrible
@@ -278,12 +319,13 @@ oo::class create Getlines {
     variable Lines
     variable Lineidx
     variable Prompts        ;# for getlines, there must be a list of prompts!
+    variable Prompt         ;# actually belongs to Getline
 
-    constructor {pr} {
-        set Prompts [list $pr]
+    constructor {args} {
         set Lines   [list ""]
         set Lineidx 0
-        next $pr
+        next {*}$args
+        set Prompts [list $Prompt]
     }
 
     method get {} {
@@ -340,7 +382,7 @@ oo::class create Getlines {
     }
 
     method prior-line {} {
-        if {$Lineidx == 0} {beep "no prev line"; return}
+        if {$Lineidx == 0} {my beep "no prev line"; return}
         my home
         output emit [tty::up 1]
         lset Lines $Lineidx [input get]
@@ -351,7 +393,7 @@ oo::class create Getlines {
         my redraw
     }
     method next-line {} {
-        if {$Lineidx + 1 == [llength $Lines]} {beep "no next line"; return}
+        if {$Lineidx + 1 == [llength $Lines]} {my beep "no next line"; return}
         my end
         lset Lines $Lineidx [input get]
         incr Lineidx 1
@@ -377,7 +419,7 @@ oo::class create Getlines {
         } elseif {$Lineidx > 0} {
             my prior-line
             my end
-        } else {beep "back at beginning of input"}
+        } else {my beep "back at beginning of input"}
     }
     method forth {{n 1}} {
         if {$n <= [input rpos]} {
@@ -385,7 +427,7 @@ oo::class create Getlines {
         } elseif {$Lineidx+1 < [llength $Lines]} {
             my next-line
             my home
-        } else {beep "forth at end of input"}
+        } else {my beep "forth at end of input"}
     }
 
     method backspace {{n 1}} {
@@ -398,7 +440,7 @@ oo::class create Getlines {
             my insert $s
             my redraw
             my redraw-following
-        } else {beep "backspace at beginning of input"}
+        } else {my beep "backspace at beginning of input"}
     }
     method delete {{n 1}} {
         if {$n <= [input rpos]} {
@@ -409,7 +451,7 @@ oo::class create Getlines {
             my back [string length $rest]
             my redraw
             my redraw-following
-        } else {beep "delete at end of input"}
+        } else {my beep "delete at end of input"}
     }
 
     method up {{n 1}} {
@@ -437,21 +479,14 @@ oo::class create Getlines {
 proc getline {{prompt "> "}} {
 
     # prompt history inchan outchan
-    Getlines create engine $prompt
+    Getlines create engine -prompt \[[info patchlevel]\]%\ 
     finally engine destroy
-    set cmds [info object methods engine -all]
-
-    while 1 {
-        # {TOKEN tok {c c c}} or {LITERAL "" {c c c}}
-        lassign [keymap gettok] kind tok chars
-        if {$kind eq "TOKEN" && $tok in $cmds} {
-            engine $tok                    ;# can return -level 1
-        } else {
-            foreach char $chars {
-                engine insert $char
-            }
-        }
-        # if [getline display-rows] has changed, redraw-following
+    try {
+        return [engine getline]
+    } on break {} {
+        return -code break
+    } on continue {} {
+        return -code continue
     }
     error "Must not get here!  [input reset]"
 }
