@@ -67,6 +67,7 @@ oo::class create History {
 
     method cursor {args} {
         if {$Cursor eq ""} {
+            if {$args eq {destroy}} return
             set Cursor [HistoryCursor new $Items]
         }
         if {$args eq {destroy}} {

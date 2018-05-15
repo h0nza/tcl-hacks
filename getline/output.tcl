@@ -8,12 +8,17 @@ oo::class create Output {
     variable pos
     variable cols
     variable rows
+    variable flashid
 
     constructor {Chan} {
         set pos 0
         set output ""
         lassign [exec stty size <@ stdin] rows cols
         set chan $Chan
+    }
+
+    destructor {
+        catch {after cancel $flashid}
     }
 
     method emit {s} {
@@ -132,7 +137,6 @@ oo::class create Output {
         my emit \x07
     }
     method flash-message {msg} {
-        variable flashid
         catch {after cancel $flashid}
         my emit [tty::save]
         lassign [exec stty size] rows cols

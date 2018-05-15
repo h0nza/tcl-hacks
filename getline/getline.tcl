@@ -48,8 +48,6 @@ proc srep {s} {
     join [lmap c [split $s ""] {rep $c}] ""
 }
 
-proc complete? {s} {info complete $s\n}
-
 proc word-length-before {s i} {
     set j 0
     foreach ab [regexp -inline -indices -all {.\m} $s] {
@@ -140,7 +138,6 @@ oo::class create Getline {
             foreach char $chars {
                 engine insert $char
             }
-            # if [getline display-rows] has changed, redraw-following
         }
     }
 
@@ -317,6 +314,17 @@ oo::class create Getlines {
         set Prompts [list $Prompt]
     }
 
+    method getline {} {
+        try {
+            next
+        } on break {} {
+            return -code break
+        } on continue {} {
+            return -code continue
+        }
+        # FIXME: if [my display-rows] has changed, redraw-following
+    }
+
     method get {} {
         lset Lines $Lineidx [input get]
         join $Lines \n
@@ -340,7 +348,7 @@ oo::class create Getlines {
     # [insert \n] might create a new line!
     method newline {} {
         set input [my get]
-        if {[complete? $input]} {
+        if {[my Complete? $input]} {
             # FIXME: go down
             tailcall my accept
         }

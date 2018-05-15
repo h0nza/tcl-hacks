@@ -5,6 +5,11 @@ proc finally args {
     tailcall trace add variable :#\; unset [list apply [list args $args $ns]]
 }
 
+proc callback {cmd args} {
+    set cmd [uplevel 1 [list namespace which $cmd]]
+    list $cmd {*}$args
+}
+
 proc alias {alias cmd args} {
     set ns [uplevel 1 {namespace current}]
     set cmd [uplevel 1 namespace which $cmd]
@@ -60,6 +65,15 @@ proc watchproc {name} {
         puts "< $r"
         return $r
     } $name]
+}
+
+proc watchvar {varname} {
+    uplevel 1 [list trace add variable $varname {read write unset} [callback watchvar_cb]]
+}
+
+proc watchvar_cb args {
+    puts "WATCH $args"
+    puts " < [info level -1]"
 }
 
 proc lshift {varName} {
