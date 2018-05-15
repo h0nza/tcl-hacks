@@ -1,6 +1,17 @@
+#
+# The sticky point right now is the relationship between Getline and Getlines:
+# as a subclass, Getlines wants to redefine some of its parent's methods to
+# provide whole-input behaviour, while other methods it wants to preserve as
+# single-line actions.  This, in an inheritance scenario, leads to some odd
+# conflicts.
+#
+# I think the solution is (of course) composition:
+#  - Getlines has-a Getline
+#  - Getlines getline tries to dispatch on its own methods first
+#  - those explicitly call down to Getline where appropriate
+#  - whole-input-replacing actions (history-*) need to "call up"
+
 # TODO:
-#  _ eliminate the bugs I've added with multiline + history + state
-#   _ getlines superclass getline is the real culprit here
 #  x char-wise nav
 #  x line-wise nav
 #  x wrap handling
@@ -12,7 +23,7 @@
 #  x flash message
 #  x tcloo'ify
 #  x multi-line input (debug further)
-#   - fix line joinage: too much redraw by far
+#   x fix line joinage: too much redraw by far
 #   - continuation prompts
 #   - multi-line redraw (just a keymap / action naming thing?)
 #  x fix up history
@@ -72,12 +83,16 @@ source getlines.tcl
 proc main {args} {
     exec stty raw -echo <@ stdin
     trace add variable args unset {apply {args {exec stty -raw echo <@ stdin}}}
+
     chan configure stdin -blocking 0
     chan configure stdout -buffering none
     chan event stdin readable [info coroutine]
+
     set prompt "\[[info patch]\]% "
-    Getline create getline -prompt $prompt
+    Getlines create getline -prompt $prompt
+
     finally getline destroy
+
     while 1 {
         set input [getline getline]             ;# can return -code break/continue
         puts " -> {[srep $input]}"

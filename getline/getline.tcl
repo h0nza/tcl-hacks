@@ -152,9 +152,10 @@ oo::class create Getline {
         if {[input pos]} {my kill-before}
         return $r
     }
-    method replace-input {s} {
+    method replace-input {s {pos 0}} {
         my clear
         my insert $s
+        my goto $pos
     }
 
     method set-state {{s ""} {p 0}} {
@@ -197,6 +198,7 @@ oo::class create Getline {
         set pos [input pos]
         set s [my History prev-starting [input pre] [my get]]
         if {$s eq ""}   { my beep "no more matching history!"; return }
+        # my replace-input $s $pos
         my kill-after
         my insert [string range $s $pos end]
         my goto $pos
@@ -205,6 +207,7 @@ oo::class create Getline {
         set pos [input pos]
         set s [my History next-starting [input pre] [my get]]
         if {$s eq ""}   { my beep "no more matching history!"; return }
+        # my replace-input $s $pos
         my kill-after
         my insert [string range $s $pos end]
         my goto $pos

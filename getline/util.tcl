@@ -58,13 +58,21 @@ proc prepend {_str prefix} {
 }
 
 proc watchproc {name} {
-    rename $name _$name
-    proc $name args [format {
-        puts "> %1$s $args"
-        set r [uplevel 1 _%1$s $args]
-        puts "< $r"
-        return $r
-    } $name]
+    uplevel 1 [list trace add execution $name {enter leave} [callback watchproc_cb]]
+}
+
+proc watchproc_cb {cmd args} {
+    if {[lindex $args end] eq "enter"} {
+        puts "TRACE > $cmd"
+        while 1 {
+            try {
+                puts "      | [info level [incr l -1]]"
+            } on error {} break
+        }
+    } else {
+        lassign $args code result
+        puts "TRA $code < $result"
+    }
 }
 
 proc watchvar {varname} {

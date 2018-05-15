@@ -20,8 +20,13 @@ oo::class create Getlines {
         next
     }
 
-    method getline {} {
+    # method goto .. count lines
+
+    method clear {} {
         my reset
+    }
+
+    method getline {} {
         try {
             next
         } on break {} {

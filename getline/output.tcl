@@ -50,6 +50,8 @@ oo::class create Output {
         set r [my get]
         set output ""
         set pos 0
+        my emit [tty::goto-col 0]
+        my emit [tty::erase-to-end]
         my insert $prompt
         #my redraw
         return $r
