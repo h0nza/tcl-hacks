@@ -1,4 +1,5 @@
 # TODO:
+#  _ eliminate the bugs I've added with multiline + history + state
 #  x char-wise nav
 #  x line-wise nav
 #  x wrap handling
@@ -93,9 +94,6 @@ oo::class create Getline {
         Input create             input
         Output create            output $Chan
         keymap::KeyMapper create keymap [expr {$Chan eq "stdout" ? "stdin" : $Chan}]
-
-        input reset
-        output reset $Prompt
     }
 
     method Configure {args} {
@@ -124,19 +122,20 @@ oo::class create Getline {
     }
 
     method getline {} {
-        set cmds [info object methods [self] -all]
+
+        my reset
 
         while 1 {
             # {TOKEN tok {c c c}} or {LITERAL "" {c c c}}
             lassign [keymap gettok] kind tok chars
             if {$kind eq "TOKEN"} {
                 try {
-                    engine $tok
+                    my $tok
                     continue
                 } trap {TCL LOOKUP METHOD *} {} { }
             }
             foreach char $chars {
-                engine insert $char
+                my insert $char
             }
         }
     }
@@ -144,6 +143,11 @@ oo::class create Getline {
     method beep {msg} {
         output beep
         if {$msg ne ""} {tailcall output flash-message $msg}
+    }
+
+    method reset {} {
+        input reset
+        output reset $Prompt
     }
 
     # action methods:
@@ -314,7 +318,14 @@ oo::class create Getlines {
         set Prompts [list $Prompt]
     }
 
+    method reset {} {
+        set Lines [list ""]
+        set Lineidx 0
+        next
+    }
+
     method getline {} {
+        my reset
         try {
             next
         } on break {} {
@@ -371,7 +382,7 @@ oo::class create Getlines {
         set rest [my kill-after]
         set Lines [linsert $Lines $Lineidx+1 $rest]
         set rows [output wrap [output pos] [output rpos]]
-        output emit [tty::down $rows]          ;# hmmm
+        output emit [tty::down $rows]           ;# hmmm
         output emit \n
         incr Lineidx
         my set-state [lindex $Lines $Lineidx]
@@ -385,8 +396,8 @@ oo::class create Getlines {
         lset Lines $Lineidx [input get]
         incr Lineidx -1
         my set-state [lindex $Lines $Lineidx]
-        set nrows [output wrap 0 [output len]]    ;# hmmm
-        output emit [tty::up $nrows]               ;# hmmm
+        set nrows [output wrap 0 [output len]]  ;# hmmm
+        output emit [tty::up $nrows]            ;# hmmm
         my redraw
     }
     method next-line {} {
@@ -395,7 +406,8 @@ oo::class create Getlines {
         lset Lines $Lineidx [input get]
         incr Lineidx 1
         my set-state [lindex $Lines $Lineidx]
-        output emit [tty::down 1]                  ;# hmmm
+        output emit [tty::down 1]               ;# hmmm
+        my flash-message [my get]
         my redraw
     }
 
@@ -473,7 +485,7 @@ oo::class create Getlines {
 }
 
 
-proc getline {{prompt "> "}} {
+proc _getline {{prompt "> "}} {
 
     # prompt history inchan outchan
     Getlines create engine -prompt \[[info patchlevel]\]%\ 
@@ -495,8 +507,10 @@ proc main {args} {
     chan configure stdout -buffering none
     chan event stdin readable [info coroutine]
     set prompt "\[[info patch]\]% "
+    Getlines create getline -prompt $prompt
+    finally getline destroy
     while 1 {
-        set input [getline]             ;# can return -code break/continue
+        set input [getline getline]             ;# can return -code break/continue
         puts " -> {[srep $input]}"
     }
 }
