@@ -469,6 +469,36 @@ proc main {args} {
     }
 }
 
+if 0 {
+    proc complete? {s} {info complete $s\n}
+    proc complete-tcl-command {s} {
+        # .. use procmap
+        # return list of possible completions
+    }
+    # complete modes: first, cycle, showbelow, ..
+    Getlines create getline \
+                    -chan stdin \
+                    -prompt "\[[info patchlevel]\]% " \
+                    -history % \
+                    -iscomplete complete? \
+                    -complete-mode cycle \
+                    -completer complete-tcl-command
+    getline add-maps [read $mapsfile]
+    while 1 {
+        set cmd [getline getline]
+        try {
+            uplevel #0 $cmd
+        } on ok {res opt} {
+            # getline emit " $res" {bold}
+            puts " $res"
+        } on error {err opt} {
+            # getline emit " $error" {fg red bold}
+            puts stderr "Error: $err"
+        }
+    }
+    getline destroy
+}
+
 coroutine Main try {
     main {*}$argv
     exit
