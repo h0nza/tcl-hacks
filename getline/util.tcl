@@ -1,3 +1,15 @@
+proc putl args {puts $args}
+
+proc finally args {
+    set ns [uplevel 1 {namespace current}]
+    tailcall trace add variable :#\; unset [list apply [list args $args $ns]]
+}
+
+proc alias {alias cmd args} {
+    set ns [uplevel 1 {namespace current}]
+    set cmd [uplevel 1 namespace which $cmd]
+    interp alias ${ns}::$alias $cmd {*}$args
+}
 
 proc sum ls {::tcl::mathop::+ {*}$ls}
 

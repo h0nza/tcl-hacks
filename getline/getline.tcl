@@ -38,17 +38,6 @@ source keymap.tcl
 source history.tcl
 source util.tcl     ;# ssplit
 
-proc putl args {puts $args}
-proc finally args {
-    set ns [uplevel 1 {namespace current}]
-    tailcall trace add variable :#\; unset [list apply [list args $args $ns]]
-}
-proc alias {alias cmd args} {
-    set ns [uplevel 1 {namespace current}]
-    set cmd [uplevel 1 namespace which $cmd]
-    interp alias ${ns}::$alias $cmd {*}$args
-}
-
 proc rep {c} {
     if {[string length $c] != 1} {error "Bad input: [binary encode hex $c]"}
     if {[string is print $c]} {return $c}
