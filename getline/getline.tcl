@@ -79,6 +79,7 @@ oo::class create Getline {
     }
 
     method reset {} {
+        #output flash-message [list [self] reset from [info level -1] from [info level -2]]
         input reset
         output reset $Prompt
     }
@@ -96,6 +97,7 @@ oo::class create Getline {
     method redraw {}      { output redraw }
 
     method insert {s} {
+        #if {[string match "*% " $s]} {output flash-message [list [self] insert from [info level -1] from [info level -2]]}
         foreach c [split $s ""] {
             input insert $c
             output insert [rep $c]  ;# attr?

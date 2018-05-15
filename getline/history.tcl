@@ -46,7 +46,7 @@ oo::class create HistoryCursor {
     }
     method next-matching {glob {curr ""}} {
         if {$curr ne ""} {lset Items $Index $curr}
-        set hit [lsearch -start $Index -glob $glob $Items]
+        set hit [lsearch -start [expr {1 + $Index}] -glob $Items $glob]
         if {$hit == -1} {return}
         set Index $hit
         lindex $Items $Index
@@ -117,7 +117,6 @@ if {$::argv0 eq [info script]} {
         if {$s eq ""} break
     }
     puts [history cursor items]
-    history add [history cursor get]<<
     while 1 {
         set s [history next y[history cursor get]]
         puts >[history cursor index]:$s

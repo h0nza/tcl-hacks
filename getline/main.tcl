@@ -69,22 +69,6 @@ proc word-length-after {s i} {
 source getline.tcl
 source getlines.tcl
 
-
-proc _getline {{prompt "> "}} {
-
-    # prompt history inchan outchan
-    Getline create engine -prompt \[[info patchlevel]\]%\ 
-    finally engine destroy
-    try {
-        return [engine getline]
-    } on break {} {
-        return -code break
-    } on continue {} {
-        return -code continue
-    }
-    error "Must not get here!  [input reset]"
-}
-
 proc main {args} {
     exec stty raw -echo <@ stdin
     trace add variable args unset {apply {args {exec stty -raw echo <@ stdin}}}
@@ -92,7 +76,7 @@ proc main {args} {
     chan configure stdout -buffering none
     chan event stdin readable [info coroutine]
     set prompt "\[[info patch]\]% "
-    Getlines create getline -prompt $prompt
+    Getline create getline -prompt $prompt
     finally getline destroy
     while 1 {
         set input [getline getline]             ;# can return -code break/continue
