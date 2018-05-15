@@ -107,22 +107,17 @@ proc word-length-after {s i} {
 
 ## class Getline is an "engine".  Methods on it may be addressed in the keymap.
 # Getline is a single-line-only getter; Getlines extends on it with line continuation capability
-## TOKENS:  these are defined in keymap
+#
 oo::class create Getline {
 
-    # history traversal is permitted when:
-    #  - histid is "" and [input::get] is ""
-    #  - histid is not ""
-    variable histid
-    variable yank
-    variable prompt
+    variable Yank
+    variable Prompt
 
     constructor {pr} {  ;# input output history iscomplete accept? completer
-        set histid ""
-        set yank ""
-        set prompt $pr
+        set Yank ""
+        set Prompt $pr
         input reset
-        output reset $prompt
+        output reset $Prompt
     }
 
     method get {} {
@@ -137,12 +132,10 @@ oo::class create Getline {
     method redraw {}      { output redraw }
 
     method insert {s} {
-        variable histid
         foreach c [split $s ""] {
             input insert $c
             output insert [rep $c]  ;# attr?
         }
-        set histid ""
     }
 
     method goto {i} {
@@ -199,15 +192,14 @@ oo::class create Getline {
     }
 
     method set-state {{s ""} {p 0}} {
-        variable prompt
         input set-state $s $p
         ssplit $s $p -> a b
         set a [srep $a]; set b [srep $b]    ;# attrs? :(
-        output set-state $prompt$a$b [string length $prompt$a]
+        output set-state $Prompt$a$b [string length $Prompt$a]
     }
 
-    method yank {s} { variable yank ; set yank $s }
-    method paste {} { variable yank ; my insert $yank }
+    method yank {s} { variable Yank ; set Yank $s }
+    method paste {} { variable Yank ; my insert $Yank }
 
     method yank-before {}      { my yank [my kill-before] }
     method yank-after {}       { my yank [my kill-after] }
@@ -283,31 +275,31 @@ oo::class create Getline {
 oo::class create Getlines {
     superclass Getline
 
-    variable lines
-    variable lineidx
-    variable prompts        ;# for getlines, there must be a list of prompts!
+    variable Lines
+    variable Lineidx
+    variable Prompts        ;# for getlines, there must be a list of prompts!
 
     constructor {pr} {
-        set prompts [list $pr]
-        set lines   [list ""]
-        set lineidx 0
+        set Prompts [list $pr]
+        set Lines   [list ""]
+        set Lineidx 0
         next $pr
     }
 
     method get {} {
-        lset lines $lineidx [input get]
-        join $lines \n
+        lset Lines $Lineidx [input get]
+        join $Lines \n
     }
 
     method redraw-following {} {
-        set line [lindex $lines $lineidx]
+        set line [lindex $Lines $Lineidx]
         set pos [input pos]
         my end
-        set idx $lineidx
+        set idx $Lineidx
         incr idx
-        while {$idx < [llength $lines]} {
+        while {$idx < [llength $Lines]} {
             output emit \n
-            set l [lindex $lines $idx]
+            set l [lindex $Lines $idx]
             my set-state $l [string length $l]
             my redraw
         }
@@ -338,51 +330,51 @@ oo::class create Getlines {
 
     method insert-newline {} {
         set rest [my kill-after]
-        set lines [linsert $lines $lineidx+1 $rest]
+        set Lines [linsert $Lines $Lineidx+1 $rest]
         set rows [output wrap [output pos] [output rpos]]
         output emit [tty::down $rows]          ;# hmmm
         output emit \n
-        incr lineidx
-        my set-state [lindex $lines $lineidx]
+        incr Lineidx
+        my set-state [lindex $Lines $Lineidx]
         my redraw
     }
 
     method prior-line {} {
-        if {$lineidx == 0} {beep "no prev line"; return}
+        if {$Lineidx == 0} {beep "no prev line"; return}
         my home
         output emit [tty::up 1]
-        lset lines $lineidx [input get]
-        incr lineidx -1
-        my set-state [lindex $lines $lineidx]
+        lset Lines $Lineidx [input get]
+        incr Lineidx -1
+        my set-state [lindex $Lines $Lineidx]
         set nrows [output wrap 0 [output len]]    ;# hmmm
         output emit [tty::up $nrows]               ;# hmmm
         my redraw
     }
     method next-line {} {
-        if {$lineidx + 1 == [llength $lines]} {beep "no next line"; return}
+        if {$Lineidx + 1 == [llength $Lines]} {beep "no next line"; return}
         my end
-        lset lines $lineidx [input get]
-        incr lineidx 1
-        my set-state [lindex $lines $lineidx]
+        lset Lines $Lineidx [input get]
+        incr Lineidx 1
+        my set-state [lindex $Lines $Lineidx]
         output emit [tty::down 1]                  ;# hmmm
         my redraw
     }
 
     method kill-next-line {} {
-        set r [lindex $lines $lineidx+1]
-        set lines [lreplace $lines $lineidx+1 $lineidx+1]
+        set r [lindex $Lines $Lineidx+1]
+        set Lines [lreplace $Lines $Lineidx+1 $Lineidx+1]
         return $r
     }
     method kill-prev-line {} {
-        set r [lindex $lines $lineidx-1]
-        set lines [lreplace $lines $lineidx-1 $lineidx-1]
+        set r [lindex $Lines $Lineidx-1]
+        set Lines [lreplace $Lines $Lineidx-1 $Lineidx-1]
         return $r
     }
 
     method back {{n 1}} {
         if {$n <= [input pos]} {
             next $n
-        } elseif {$lineidx > 0} {
+        } elseif {$Lineidx > 0} {
             my prior-line
             my end
         } else {beep "back at beginning of input"}
@@ -390,7 +382,7 @@ oo::class create Getlines {
     method forth {{n 1}} {
         if {$n <= [input rpos]} {
             next $n
-        } elseif {$lineidx+1 < [llength $lines]} {
+        } elseif {$Lineidx+1 < [llength $Lines]} {
             my next-line
             my home
         } else {beep "forth at end of input"}
@@ -399,7 +391,7 @@ oo::class create Getlines {
     method backspace {{n 1}} {
         if {$n <= [input pos]} {
             next $n
-        } elseif {$lineidx > 0} {
+        } elseif {$Lineidx > 0} {
             my prior-line
             my end
             set s [my kill-next-line]
@@ -411,7 +403,7 @@ oo::class create Getlines {
     method delete {{n 1}} {
         if {$n <= [input rpos]} {
             next $n
-        } elseif {$lineidx+1 < [llength $lines]} {
+        } elseif {$Lineidx+1 < [llength $Lines]} {
             set rest [my kill-next-line]
             my insert $rest
             my back [string length $rest]
@@ -421,7 +413,7 @@ oo::class create Getlines {
     }
 
     method up {{n 1}} {
-        if {$lineidx > 0} {
+        if {$Lineidx > 0} {
             set pos [input pos]
             my prior-line
             my home
@@ -430,7 +422,7 @@ oo::class create Getlines {
         }
     }
     method down {{n 1}} {
-        if {$lineidx + 1 < [llength $lines]} {
+        if {$Lineidx + 1 < [llength $Lines]} {
             set pos [input pos]
             my next-line
             my home
