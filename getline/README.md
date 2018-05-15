@@ -1,5 +1,7 @@
 ## STATUS:
 
+ - state-management bugs have been introduced, causing too many overdraws and multi-line to go wiggy
+   - fixable, specifically by examining the Getlines/Getline inheritance relationship
  - still needs a little bit of factoring to make a loadable module
  - most of core functionality is there and "tested" - see top of getline.tcl for details
 
