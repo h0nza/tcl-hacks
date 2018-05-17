@@ -162,9 +162,11 @@ namespace eval getline {
             lset Lines $Lineidx [input get]
             set idx $Lineidx
             while {![my is-last-line]} { my next-line }
-            output emit \n      ;# tty::down won't force a scroll
+            output emit [tty::save]         ;# ugh
+            output emit \n                  ;# tty::down won't force a scroll
             output emit [tty::erase-line]
-            output emit [tty::up]
+            #output emit [tty::up]
+            output emit [tty::restore]
             while {$Lineidx > $idx}   { my prior-line }
             my goto $pos
         }
