@@ -1,9 +1,11 @@
 ## STATUS:
 
- - state-management bugs have been introduced, causing too many overdraws and multi-line to go wiggy
-   - fixable, specifically by examining the Getlines/Getline inheritance relationship
- - still needs a little bit of factoring to make a loadable module
+ - redraws too much
+ - yeah it's slow, have you tried taking out the [after 10] in tty::emit?
+ - still needs a little bit of factoring to make a well-behaved loadable module
  - most of core functionality is there and "tested" - see top of getline.tcl for details
+ - I might want to specially name the exposable commands - eg :forth ?
+ - a call graph would be pretty neat to see
 
 !IMPORTANT!: call [getline] from inside a coroutine, so it can yield to the event loop.  If you prefer a callback style, it's just a few lines of code:
 
