@@ -113,6 +113,7 @@ oo::class create Getline {
     }
 
     method redraw-line {} { output redraw }
+    # these redraw too much by virtue of next/prior-line'ing over the whole input
     method redraw-preceding {} {
         set pos [input pos]
         lset Lines $Lineidx [input get]
@@ -126,7 +127,7 @@ oo::class create Getline {
         lset Lines $Lineidx [input get]
         set idx $Lineidx
         while {![my is-last-line]} { my next-line }
-        output emit [tty::down]
+        output emit \n      ;# tty::down won't force a scroll
         output emit [tty::erase-line]
         output emit [tty::up]
         while {$Lineidx > $idx}   { my prior-line }
