@@ -1,6 +1,3 @@
-** the prompt needs to be held in getline and fed to input,
-** so input::reset can dtrt and so can getline::set-state
-
 Multi-line input is just single-line input where:
  - newline when not Complete?, splits the line opens a new getline $prompt2
  - each line must be able to report its displayrows (including prompt)

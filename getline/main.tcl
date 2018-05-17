@@ -1,16 +1,3 @@
-#
-# The sticky point right now is the relationship between Getline and Getlines:
-# as a subclass, Getlines wants to redefine some of its parent's methods to
-# provide whole-input behaviour, while other methods it wants to preserve as
-# single-line actions.  This, in an inheritance scenario, leads to some odd
-# conflicts.
-#
-# I think the solution is (of course) composition:
-#  - Getlines has-a Getline
-#  - Getlines getline tries to dispatch on its own methods first
-#  - those explicitly call down to Getline where appropriate
-#  - whole-input-replacing actions (history-*) need to "call up"
-
 # TODO:
 #  x char-wise nav
 #  x line-wise nav
@@ -25,7 +12,7 @@
 #  x multi-line input (debug further)
 #   x fix line joinage: too much redraw by far
 #   - continuation prompts
-#   - multi-line redraw (just a keymap / action naming thing?)
+#   x multi-line redraw (just a keymap / action naming thing?)
 #  x fix up history
 #  x objectify keymap
 #  x -options to Getline, move history etc into components
@@ -78,7 +65,6 @@ proc word-length-after {s i} {
 }
 
 source getline.tcl
-source getlines.tcl
 
 proc main {args} {
     exec stty raw -echo <@ stdin
@@ -89,7 +75,7 @@ proc main {args} {
     chan event stdin readable [info coroutine]
 
     set prompt "\[[info patch]\]% "
-    Getlines create getline -prompt $prompt
+    Getline create getline -prompt $prompt
 
     finally getline destroy
 
@@ -106,7 +92,7 @@ if 0 {
         # return list of possible completions
     }
     # complete modes: first, cycle, showbelow, ..
-    Getlines create getline \
+    Getline create getline \
                     -chan stdin \
                     -prompt "\[[info patchlevel]\]% " \
                     -history % \

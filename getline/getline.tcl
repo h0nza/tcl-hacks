@@ -6,6 +6,11 @@ oo::class create Getline {
     # state:
     variable Yank
 
+    # multi-line state:
+    variable Lines
+    variable Lineidx
+    variable Prompts
+
     # options:
     variable Prompt
     variable Chan
@@ -19,10 +24,14 @@ oo::class create Getline {
 
     constructor {args} {
         set Yank ""
+        set Lines {""}
+        set Lineidx 0
         set Prompt "getline> "
         set Chan stdout
 
         my Configure {*}$args
+
+        set Prompts [list $Prompt]
 
         Input create             input
         Output create            output $Chan
@@ -79,29 +88,68 @@ oo::class create Getline {
     }
 
     method reset {} {
-        #output flash-message [list [self] reset from [info level -1] from [info level -2]]
+        set Lines {""}
+        set Lineidx 0
         input reset
         output reset $Prompt
     }
 
-    # action methods:
     method get {} {
-        input get
+        lset Lines $Lineidx [input get]
+        join $Lines \n
     }
 
+    # action methods:
     method sigpipe {} {
         if {[input get] ne ""}  { my beep "sigpipe with [string length [input get]] chars"; return }
         return -level 2 -code break
     }
     method sigint {}      { return -level 2 -code continue }
-    method redraw {}      { output redraw }
+
+    method redraw {} {
+        my redraw-preceding
+        my redraw-following
+        my redraw-line
+    }
+
+    method redraw-line {} { output redraw }
+    method redraw-preceding {} {
+        set pos [input pos]
+        lset Lines $Lineidx [input get]
+        set idx $Lineidx
+        while {![my is-first-line]} { my prior-line }
+        while {$Lineidx > $idx}      { my next-line }
+        my goto $pos
+    }
+    method redraw-following {} {
+        set pos [input pos]
+        lset Lines $Lineidx [input get]
+        set idx $Lineidx
+        while {![my is-last-line]} { my next-line }
+        output emit [tty::down]
+        output emit [tty::erase-line]
+        output emit [tty::up]
+        while {$Lineidx > $idx}   { my prior-line }
+        my goto $pos
+    }
 
     method insert {s} {
-        #if {[string match "*% " $s]} {output flash-message [list [self] insert from [info level -1] from [info level -2]]}
         foreach c [split $s ""] {
-            input insert $c
-            output insert [rep $c]  ;# attr?
+            if {$c eq "\n"} {
+                my insert-newline
+            } else {
+                input insert $c
+                output insert [rep $c]  ;# attr?
+            }
         }
+    }
+
+    method insert-newline {} {
+        set rest [my kill-after]
+        lset Lines $Lineidx [my get]
+        set Lines [linsert $Lines $Lineidx+1 $rest]
+        output emit \n
+        my next-line
     }
 
     method goto {i} {
@@ -114,6 +162,12 @@ oo::class create Getline {
 
     method back {{n 1}} {
         if {$n == 0} return
+        while {$n > [input pos] && ![my is-first-line]} {
+            incr n -[input pos]
+            incr n -1
+            my prior-line
+            my end
+        }
         if {[input pos] < 1} {my beep "back at BOL"; return}
         set n [expr {min($n, [input pos])}]
         if {$n == 0} return
@@ -121,6 +175,12 @@ oo::class create Getline {
     }
     method forth {{n 1}} {
         if {$n == 0} return
+        while {$n > [input rpos] && ![my is-last-line]} {
+            incr n -[input rpos]
+            incr n -1
+            my next-line
+            my home
+        }
         if {[input rpos] < 1} {my beep "forth at EOL"; return}
         set n [expr {min($n, [input rpos])}]
         if {$n == 0} return
@@ -129,6 +189,16 @@ oo::class create Getline {
 
     method backspace {{n 1}} {
         if {$n == 0} return
+        while {$n > [input pos] && ![my is-first-line]} {
+            incr n -[input pos]
+            incr n -1
+            my kill-before
+            my prior-line
+            my end
+            set s [my kill-next-line]
+            my insert $s
+            my redraw-following
+        }
         if {[input pos] < 1} {my beep "backspace at BOL"; return}
         set n [expr {min($n, [input pos])}]
         if {$n == 0} return
@@ -138,6 +208,14 @@ oo::class create Getline {
     }
     method delete {{n 1}} {
         if {$n == 0} return
+        while {$n > [input rpos] && ![my is-last-line]} {
+            incr n -[input rpos]
+            incr n -1
+            set rest [my kill-next-line]
+            my insert $rest
+            my back [string length $rest]
+            my redraw-following
+        }
         if {[input rpos] < 1} {my beep "delete at EOL"; return}
         set n [expr {min($n, [input rpos])}]
         if {$n == 0} return
@@ -150,19 +228,89 @@ oo::class create Getline {
         set r [input get]
         if {[input rpos]} {my kill-after}
         if {[input pos]} {my kill-before}
+        while {![my is-last-line]} {my kill-next-line}
+        while {![my is-first-line]} {my kill-prior-line}
         return $r
     }
     method replace-input {s {pos 0}} {
         my clear
         my insert $s
+        if {[my get] ne $s} {error "didn't work!: [my get] [list $Lines]"}
         my goto $pos
     }
-
     method set-state {{s ""} {p 0}} {
         input set-state $s $p
         ssplit $s $p -> a b
         set a [srep $a]; set b [srep $b]    ;# attrs? :(
         output set-state $Prompt$a$b [string length $Prompt$a]
+    }
+
+    # multi-line helpers
+    method is-first-line {}     { expr {$Lineidx == 0} }
+    method is-last-line {}      { expr {$Lineidx == [llength $Lines]-1} }
+
+    method prior-line {} {
+        if {[my is-first-line]} {my beep "No prior line"; return}
+        my home
+        lset Lines $Lineidx [input get]
+        incr Lineidx -1
+        my set-state [lindex $Lines $Lineidx]
+        set  nrows [output wrap 0 [output len]]  ;# hmmm
+        incr nrows 1
+        output emit [tty::up $nrows]
+        my redraw-line
+    }
+    method next-line {} {
+        if {[my is-last-line]} {my beep "No next line"; return}
+        my end
+        lset Lines $Lineidx [input get]
+        incr Lineidx 1
+        my set-state [lindex $Lines $Lineidx]
+        set  nrows [output wrap 0 [output len]]  ;# hmmm
+        incr nrows 1
+        output emit [tty::down $nrows]
+        my redraw-line
+    }
+
+    method kill-next-line {} {
+        set r [lindex $Lines $Lineidx+1]
+        set Lines [lreplace $Lines $Lineidx+1 $Lineidx+1]
+        return $r
+    }
+    method kill-prior-line {} {
+        set r [lindex $Lines $Lineidx-1]
+        set Lines [lreplace $Lines $Lineidx-1 $Lineidx-1]
+        return $r
+    }
+
+    method up {{n 1}} {
+        if {$n == 0} {return}
+        if {[my is-first-line]} {my beep "No more lines!"; return}
+        set pos [input pos]
+        while {$n > 0 && ![my is-first-line]} {
+            my prior-line
+            my goto [expr {min($pos,[input rpos])}]
+            incr n -1
+        }
+    }
+    method down {{n 1}} {
+        if {$n == 0} {return}
+        if {[my is-last-line]} {my beep "No more lines!"; return}
+        set pos [input pos]
+        while {$n > 0 && ![my is-first-line]} {
+            my prior-line
+            my goto [expr {min($pos,[input rpos])}]
+            incr n 1
+        }
+    }
+
+    method very-home {} {
+        my home
+        while {![my is-first-line]} { my back 1 ; my home }
+    }
+    method very-end {} {
+        my end
+        while {![my is-last-line]} { my forth 1 ; my end }
     }
 
     method yank {s} { variable Yank ; set Yank $s }
@@ -188,6 +336,7 @@ oo::class create Getline {
         set s [my History prev [my get]]
         if {$s eq ""}   { my beep "no more history!"; return }
         my replace-input $s
+        my redraw
     }
     method history-next {} {
         set s [my History next [my get]]
@@ -222,7 +371,13 @@ oo::class create Getline {
     }
 
     method newline {} {
-        tailcall my accept
+        set input [my get]
+        if {[my Complete? $input]} {
+            my very-end
+            tailcall my accept
+        } else {
+            my insert \n
+        }
     }
 
     method editor {} {
