@@ -12,6 +12,7 @@ oo::class create HistoryCursor {
     variable Items Index
 
     constructor {items {index ""}} {
+        namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]
         if {$index eq ""} {
             set index [llength $items]
         }
@@ -58,6 +59,7 @@ oo::class create History {
     variable Cursor
 
     constructor {} {
+        namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]
         set Items {}
         set Cursor {}
     }

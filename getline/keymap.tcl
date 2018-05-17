@@ -109,11 +109,12 @@ namespace eval keymap {
         variable KeyTrie
         variable Map
         constructor {chan {map .}} {
-            namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]
+            set ns [namespace qualifiers [self class]]
+            namespace path [list $ns {*}[namespace path]]
             try {
                 dict size $map
             } on error {} {
-                set map $::keymap::default_keymap
+                set map [set ${ns}::default_keymap]
             }
             set Chan $chan
 

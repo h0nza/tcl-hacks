@@ -11,6 +11,7 @@ oo::class create Output {
     variable flashid
 
     constructor {Chan} {
+        namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]
         set pos 0
         set output ""
         lassign [exec stty size <@ stdin] rows cols

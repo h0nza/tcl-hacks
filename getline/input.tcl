@@ -6,6 +6,7 @@ oo::class create Input {
     variable moreinput
 
     constructor {{in ""} {idx end}} {
+        namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]
         my init $in $idx
     }
 

@@ -32,39 +32,10 @@
 # OPTIMISATION:
 #  - don't redraw so greedily when forthing
 #  - incrementally fix up lines
-source input.tcl
-source output.tcl
-source keymap.tcl
-source history.tcl
-source util.tcl     ;# ssplit
-
-proc rep {c} {
-    if {[string length $c] != 1} {error "Bad input: [binary encode hex $c]"}
-    if {[string is print $c]} {return $c}
-    return "\\x[binary encode hex $c]"
-}
-
-proc srep {s} {
-    join [lmap c [split $s ""] {rep $c}] ""
-}
-
-proc word-length-before {s i} {
-    set j 0
-    foreach ab [regexp -inline -indices -all {.\m} $s] {
-        lassign $ab a b
-        incr a
-        if {$a >= $i} break
-        set j $a
-    }
-    expr {$i - $j}
-}
-proc word-length-after {s i} {
-    if {![regexp -indices -start $i {\M} $s ab]} {return $i}
-    lassign $ab a b
-    expr {$a - $i}
-}
 
 source getline.tcl
+
+namespace path ::getline
 
 proc main {args} {
     exec stty raw -echo <@ stdin
