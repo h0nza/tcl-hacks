@@ -48,6 +48,8 @@ proc main {args} {
     set prompt "\[[info patch]\]% "
     Getline create getline -prompt $prompt
 
+    #watchexec getline
+
     finally getline destroy
 
     while 1 {

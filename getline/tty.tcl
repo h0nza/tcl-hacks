@@ -1,6 +1,8 @@
 source util.tcl    ;# lshift
 
 namespace eval tty {
+    namespace path [namespace parent]
+
     # http://real-world-systems.com/docs/ANSIcode.html#Esc
     proc _def {name args result} {
         set CSI \x1b\[      ;# or \x9b ?

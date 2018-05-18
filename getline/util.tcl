@@ -57,6 +57,34 @@ proc prepend {_str prefix} {
     set str $prefix$str
 }
 
+proc watchexec {name} {
+    uplevel 1 [list trace add execution $name {enterstep leavestep} [coroutine [info cmdcount] watchexec_cb]]
+}
+
+proc watchexec_cb {} {
+    set args [lassign [yieldto string cat [info coroutine]] cmd]
+    set depth 1
+    while 1 {
+        if {[lindex $args end] eq "enterstep"} {
+            if {[lindex $cmd 0] eq "my"} {
+                #lset cmd 0 [uplevel 1 self]
+                set cmd [lrange $cmd 0 1]
+            } elseif {[uplevel 1 [list info object isa object $cmd]]} {
+                set cmd [lrange $cmd 0 1]
+            } else {
+                set cmd [lrange $cmd 0 0]
+            }
+            putl TRACE [string repeat ">" $depth] $cmd
+            incr depth
+        } else {
+            lassign $args code result
+            incr depth -1
+            putl TRACE [string repeat "<" $depth] $result
+        }
+        set args [lassign [yieldto string cat] cmd]
+    }
+}
+
 proc watchproc {name} {
     uplevel 1 [list trace add execution $name {enter leave} [callback watchproc_cb]]
 }

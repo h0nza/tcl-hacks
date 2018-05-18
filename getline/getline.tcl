@@ -1,3 +1,4 @@
+# _ goto is broken.  I need a multiline- and wrap-aware version.
 namespace eval getline {
 
     source input.tcl
@@ -53,6 +54,8 @@ namespace eval getline {
         method History {args} {
             History create History
             oo::objdefine [self] forward History History
+            History add "0123456789012345678901234567890123456789"
+            History add "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxX\nYyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyY\nZzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
             tailcall my History {*}$args
         }
 
@@ -142,8 +145,8 @@ namespace eval getline {
         method sigint {}      { return -level 2 -code continue }
 
         method redraw {} {
-            my redraw-preceding
-            my redraw-following
+            #my redraw-preceding
+            #my redraw-following
             my redraw-line
         }
 
@@ -155,7 +158,7 @@ namespace eval getline {
             set idx $Lineidx
             while {![my is-first-line]} { my prior-line }
             while {$Lineidx > $idx}      { my next-line }
-            my goto $pos
+            my goto-column $pos
         }
         method redraw-following {} {
             set pos [input pos]
@@ -168,7 +171,7 @@ namespace eval getline {
             #output emit [tty::up]
             output emit [tty::restore]
             while {$Lineidx > $idx}   { my prior-line }
-            my goto $pos
+            my goto-column $pos
         }
 
         method insert {s} {
@@ -186,11 +189,41 @@ namespace eval getline {
             set rest [my kill-after]
             lset Lines $Lineidx [my get]
             set Lines [linsert $Lines $Lineidx+1 $rest]
-            output emit \n
             my next-line
         }
 
+        method abspos {} {
+            for {set i 0} {$i < $Lineidx} {incr i} {
+                incr r [string length [lindex $Lines $i]]
+                incr r 1
+            }
+            incr r [input pos]
+        }
+
         method goto {i} {
+            set p [my abspos]
+            set delta [expr {$i - $p}]
+            if {$delta < 0} {
+                set delta [expr {-$delta}]
+                while {$delta > [input pos]} {
+                    incr delta -[input pos]
+                    my prior-line
+                    incr delta -1
+                    my end
+                }
+                my back $delta
+            } else {
+                while {$delta > [input rpos]} {
+                    incr delta -[input rpos]
+                    my next-line
+                    incr delta -1
+                    my home
+                }
+                my forth $delta
+            }
+        }
+
+        method goto-column {i} {
             if {$i < [input pos]} {
                 my back  [expr {[input pos] - $i}]
             } else {
@@ -276,6 +309,11 @@ namespace eval getline {
             if {[my get] ne $s} {error "didn't work!: [my get] [list $Lines]"}
             my goto $pos
         }
+
+        # this is the next spot to tackle: set-state updates the current-line state
+        # with the navigated-to line, once the cursor is put there (it redraws).  It's
+        # the place to choose (or generate) a new Prompt, and it can take on some of
+        # the cursor navigation responsibilities.  Used by next-line/prior-line
         method set-state {{s ""} {p 0}} {
             input set-state $s $p
             ssplit $s $p -> a b
@@ -306,7 +344,7 @@ namespace eval getline {
             my set-state [lindex $Lines $Lineidx]
             set  nrows [output wrap 0 [output len]]  ;# hmmm
             incr nrows 1
-            output emit [tty::down $nrows]
+            output emit [string repeat \n $nrows]
             my redraw-line
         }
 
@@ -318,6 +356,7 @@ namespace eval getline {
         method kill-prior-line {} {
             set r [lindex $Lines $Lineidx-1]
             set Lines [lreplace $Lines $Lineidx-1 $Lineidx-1]
+            incr Lineidx -1
             return $r
         }
 
@@ -327,7 +366,7 @@ namespace eval getline {
             set pos [input pos]
             while {$n > 0 && ![my is-first-line]} {
                 my prior-line
-                my goto [expr {min($pos,[input rpos])}]
+                my goto-column [expr {min($pos,[input rpos])}]
                 incr n -1
             }
         }
@@ -337,7 +376,7 @@ namespace eval getline {
             set pos [input pos]
             while {$n > 0 && ![my is-first-line]} {
                 my prior-line
-                my goto [expr {min($pos,[input rpos])}]
+                my goto-column [expr {min($pos,[input rpos])}]
                 incr n 1
             }
         }
@@ -374,7 +413,6 @@ namespace eval getline {
             set s [my History prev [my get]]
             if {$s eq ""}   { my beep "no more history!"; return }
             my replace-input $s
-            my redraw
         }
         method history-next {} {
             set s [my History next [my get]]
@@ -385,19 +423,13 @@ namespace eval getline {
             set pos [input pos]
             set s [my History prev-starting [input pre] [my get]]
             if {$s eq ""}   { my beep "no more matching history!"; return }
-            # my replace-input $s $pos
-            my kill-after
-            my insert [string range $s $pos end]
-            my goto $pos
+            my replace-input $s $pos
         }
         method history-next-starting {} {
             set pos [input pos]
             set s [my History next-starting [input pre] [my get]]
             if {$s eq ""}   { my beep "no more matching history!"; return }
-            # my replace-input $s $pos
-            my kill-after
-            my insert [string range $s $pos end]
-            my goto $pos
+            my replace-input $s $pos
         }
 
         method accept {} {

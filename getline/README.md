@@ -1,6 +1,7 @@
 ## STATUS:
 
- - redraws too much
+ - wrapping + multi-line in conjunction has some bugs now
+ - redraws too much.  This can be seen to go wrong in wrapped lines
  - yeah it's slow, have you tried taking out the [after 10] in tty::emit?
  - still needs a little bit of factoring to make a well-behaved loadable module
  - most of core functionality is there and "tested" - see top of getline.tcl for details

@@ -23,13 +23,12 @@ oo::class create Output {
     }
 
     method emit {s} {
-        #if {[string match "*% " $s]} {my flash-message [list [self] emit from [info level -1] from [info level -2]]}
         if {[string match \x1b* $s]} {
             puts -nonewline $chan $s
         } else {
             foreach c [split $s ""] {
                 puts -nonewline $chan $c
-                after 20
+                after 10
             }
         }
     }
@@ -47,7 +46,6 @@ oo::class create Output {
     method rpos {} {expr {[string length $output]-$pos}}
 
     method reset {prompt} {
-        #my flash-message [list [self] reset from [info level -1] from [info level -2]]
         set r [my get]
         set output ""
         set pos 0
@@ -64,10 +62,14 @@ oo::class create Output {
 
     method redraw {} {
         lassign [exec stty size <@ stdin] rows cols     ;# because no SIGWINCH
+        set dy [my wrap 0 [my pos]]
+        if {$dy} {my emit [tty::up $dy]}
         my emit [tty::goto-col 0]
         my emit [tty::erase-to-end]
         my emit $output
-        my emit [tty::left [my rpos]]
+        set dy [my wrap [my pos] [my rpos]]
+        if {$dy} {my emit [tty::up $dy]}
+        my emit [tty::goto-col [expr {1 + $pos % $cols}]]
     }
     method redraw-rest {} {
         if {[my rpos] == 0} {
@@ -85,7 +87,6 @@ oo::class create Output {
     }
 
     method insert {s} {
-        #if {[string match "*% " $s]} {my flash-message [list [self] insert from [info level -1] from [info level -2]]}
         # update state
         set n [string length $s]
         set output [sinsert $output $pos $s]
@@ -107,7 +108,7 @@ oo::class create Output {
         set dy [my wrap $pos $n]
         if {$dy} {
             my emit [tty::up $dy]
-            my emit [tty::goto-col [expr {1 + ($pos) % $cols}]]
+            my emit [tty::goto-col [expr {1 + $pos % $cols}]]
         } else {
             my emit [tty::left $n]
         }
