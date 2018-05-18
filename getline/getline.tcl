@@ -1,4 +1,3 @@
-# _ goto is broken.  I need a multiline- and wrap-aware version.
 namespace eval getline {
 
     source input.tcl
@@ -192,16 +191,16 @@ namespace eval getline {
             my next-line
         }
 
-        method abspos {} {
+        # these need to be better named
+        method abs-pos {} {
             for {set i 0} {$i < $Lineidx} {incr i} {
                 incr r [string length [lindex $Lines $i]]
                 incr r 1
             }
             incr r [input pos]
         }
-
         method goto {i} {
-            set p [my abspos]
+            set p [my abs-pos]
             set delta [expr {$i - $p}]
             if {$delta < 0} {
                 set delta [expr {-$delta}]
@@ -209,7 +208,7 @@ namespace eval getline {
                     incr delta -[input pos]
                     my prior-line
                     incr delta -1
-                    my end
+                    my goto-column end
                 }
                 my back $delta
             } else {
@@ -217,14 +216,16 @@ namespace eval getline {
                     incr delta -[input rpos]
                     my next-line
                     incr delta -1
-                    my home
+                    my goto-column 0
                 }
                 my forth $delta
             }
         }
 
         method goto-column {i} {
-            if {$i < [input pos]} {
+            if {$i eq "end"} {
+                my forth [input rpos]
+            } elseif {$i < [input pos]} {
                 my back  [expr {[input pos] - $i}]
             } else {
                 my forth [expr {$i - [input pos]}]
@@ -237,7 +238,7 @@ namespace eval getline {
                 incr n -[input pos]
                 incr n -1
                 my prior-line
-                my end
+                my goto-column end
             }
             if {[input pos] < 1} {my beep "back at BOL"; return}
             set n [expr {min($n, [input pos])}]
@@ -250,7 +251,7 @@ namespace eval getline {
                 incr n -[input rpos]
                 incr n -1
                 my next-line
-                my home
+                my goto-column 0
             }
             if {[input rpos] < 1} {my beep "forth at EOL"; return}
             set n [expr {min($n, [input rpos])}]
@@ -265,7 +266,7 @@ namespace eval getline {
                 incr n -1
                 my kill-before
                 my prior-line
-                my end
+                my goto-column end
                 set s [my kill-next-line]
                 my insert $s
                 my redraw-following
@@ -327,7 +328,7 @@ namespace eval getline {
 
         method prior-line {} {
             if {[my is-first-line]} {my beep "No prior line"; return}
-            my home
+            my goto-column 0
             lset Lines $Lineidx [input get]
             incr Lineidx -1
             my set-state [lindex $Lines $Lineidx]
@@ -338,7 +339,7 @@ namespace eval getline {
         }
         method next-line {} {
             if {[my is-last-line]} {my beep "No next line"; return}
-            my end
+            my goto-column end
             lset Lines $Lineidx [input get]
             incr Lineidx 1
             my set-state [lindex $Lines $Lineidx]
@@ -382,31 +383,63 @@ namespace eval getline {
         }
 
         method very-home {} {
-            my home
-            while {![my is-first-line]} { my back 1 ; my home }
+            my goto-column 0
+            while {![my is-first-line]} { my back 1 ; my goto-column 0 }
         }
         method very-end {} {
-            my end
-            while {![my is-last-line]} { my forth 1 ; my end }
+            my goto-column end
+            while {![my is-last-line]} { my forth 1 ; my goto-column end }
         }
 
         method yank {s} { variable Yank ; set Yank $s }
         method paste {} { variable Yank ; my insert $Yank }
 
-        method yank-before {}      { my yank [my kill-before] }
-        method yank-after {}       { my yank [my kill-after] }
-        method yank-word-before {} { my yank [my kill-word-before] }
-        method yank-word-after {}  { my yank [my kill-word-after] }
+        method yank-before {}       { my yank [my kill-before] }
+        method yank-after {}        { my yank [my kill-after] }
+        method yank-word-before {}  { my yank [my kill-word-before] }
+        method yank-word-after {}   { my yank [my kill-word-after] }
 
-        method home {}             { my back      [input pos] }
-        method end {}              { my forth    [input rpos] }
-        method kill-before {}      { my backspace [input pos] }
-        method kill-after {}       { my delete   [input rpos] }
+        method home {} {
+            if {[input pos]}                { my back      [input pos]
+            } elseif {![my is-first-line]}  { my prior-line ; my home
+            }
+        }
+        method end {} {
+            if {[input rpos]}               { my forth    [input rpos]
+            } elseif {![my is-last-line]}   { my next-line  ; my end
+            }
+        }
+        method kill-before {} {
+            if {[input pos]}                { my backspace [input pos]
+            } elseif {![my is-first-line]}  { my prior-line ; my kill-line
+            }
+        }
+        method kill-after {} {
+            if {[input rpos]}               { my delete   [input rpos]
+            } elseif {![my is-last-line]}   { my next-line  ; my kill-line
+            }
+        }
 
-        method back-word {}        { my back      [word-length-before [input get] [input pos]] }
-        method forth-word {}       { my forth     [word-length-after  [input get] [input pos]] }
-        method kill-word-before {} { my backspace [word-length-before [input get] [input pos]] }
-        method kill-word-after {}  { my delete    [word-length-after  [input get] [input pos]] }
+        method back-word {} {
+            if {[input pos]}                { my back      [word-length-before [input get] [input pos]]
+            } elseif {![my is-first-line]}  { my prior-line ; my end    ; my back-word
+            }
+        }
+        method forth-word {} {
+            if {[input pos]}                { my forth     [word-length-after  [input get] [input pos]]
+            } elseif {![my is-last-line]}   { my next-line ; my end    ; my forth-word
+            }
+        }
+        method kill-word-before {} {
+            if {[input pos]}                { my backspace [word-length-before [input get] [input pos]]
+            } elseif {![my is-first-line]}  { my prior-line ; my end    ; my kill-word-before
+            }
+        }
+        method kill-word-after {} {
+            if {[input pos]}                { my delete    [word-length-after  [input get] [input pos]]
+            } elseif {![my is-last-line]}   { my next-line  ; my home   ; my kill-word-after
+            }
+        }
         # softbreak tab
 
         method history-prev {} {
