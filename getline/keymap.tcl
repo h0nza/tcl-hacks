@@ -34,8 +34,11 @@ namespace eval keymap {
         ^X^U    undo
         ^X^X    swap-mark
 
-        ^[[A    history-prev-starting
-        ^[[B    history-next-starting
+        ^[^[[A    history-prev-starting
+        ^[^[[B    history-next-starting
+
+        ^[[A    up
+        ^[[B    down
         ^[[C    forth
         ^[[D    back
 

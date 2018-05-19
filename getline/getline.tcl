@@ -363,7 +363,10 @@ namespace eval getline {
 
         method up {{n 1}} {
             if {$n == 0} {return}
-            if {[my is-first-line]} {my beep "No more lines!"; return}
+            if {[my is-first-line]} {
+                if {[input pos]} { my home } else { my history-prev }
+                return
+            }
             set pos [input pos]
             while {$n > 0 && ![my is-first-line]} {
                 my prior-line
@@ -373,12 +376,15 @@ namespace eval getline {
         }
         method down {{n 1}} {
             if {$n == 0} {return}
-            if {[my is-last-line]} {my beep "No more lines!"; return}
+            if {[my is-last-line]} {
+                if {[input rpos]} { my end } else { my history-next }
+                return
+            }
             set pos [input pos]
-            while {$n > 0 && ![my is-first-line]} {
-                my prior-line
+            while {$n > 0 && ![my is-last-line]} {
+                my next-line
                 my goto-column [expr {min($pos,[input rpos])}]
-                incr n 1
+                incr n -1
             }
         }
 

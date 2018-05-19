@@ -1,4 +1,13 @@
+# WIBNI: continuation prompts, colours, completion
+#  - M-: to issue commands directly to getline
+#  - M-digit digit .. counts so \e5^X^E opens an editor with LAST FIVE LINES OMG
+#  - factor command definitions for symmetry, but don't go overboard
+#  - attrs
+#  - use exceptions for beep, result
+#  - inter-line nav without excessive redraw
+#  - a manual, with that call graph
 # TODO:
+#  - up/down navigation in lines
 #  x char-wise nav
 #  x line-wise nav
 #  x wrap handling
