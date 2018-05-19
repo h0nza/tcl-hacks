@@ -41,7 +41,7 @@ Getline does all of (items in __ are incomplete):
  - representing an input char by multiple output chars (try `^V^A` and then cursor around it)
  - multi-key maps (I love `^X^E`)
  - handles wrapping properly (terminals suck, so this is harder than it sounds)
- - multi-line input with __ continuation prompts and inter-line navigation (modelled a bit after `ipython`, but better)
+ - multi-line input with continuation prompts and inter-line navigation (modelled a bit after `ipython`, but better)
  - multiple instances can exist serving different channels
  - lots of convenient keymaps, easy to add more
  - a simple yank buffer with __ cumulative yank "where you expect it"

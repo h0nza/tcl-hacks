@@ -100,6 +100,16 @@ namespace eval getline {
             }
         }
 
+        method Prompt {} {
+            if {[lindex $Prompts $Lineidx] eq ""} {
+                regexp {^(.*)(\S)(\s*)$} $Prompt -> prefix char space
+                regsub -all . $prefix " " prefix
+                set prompt2 $prefix$char$space
+                lset Prompts $Lineidx $prompt2
+            }
+            lindex $Prompts $Lineidx
+        }
+
         method getline {} {
 
             my reset
@@ -128,7 +138,7 @@ namespace eval getline {
             set Lines {""}
             set Lineidx 0
             input reset
-            output reset $Prompt
+            output reset [my Prompt]
         }
 
         method get {} {
@@ -319,7 +329,7 @@ namespace eval getline {
             input set-state $s $p
             ssplit $s $p -> a b
             set a [srep $a]; set b [srep $b]    ;# attrs? :(
-            output set-state $Prompt$a$b [string length $Prompt$a]
+            output set-state [my Prompt]$a$b [string length [my Prompt]$a]
         }
 
         # multi-line helpers

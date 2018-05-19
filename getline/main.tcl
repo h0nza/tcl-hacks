@@ -19,7 +19,7 @@
 #  x tcloo'ify
 #  x multi-line input (debug further)
 #   x fix line joinage: too much redraw by far
-#   - continuation prompts
+#   x continuation prompts
 #   x multi-line redraw (just a keymap / action naming thing?)
 #  x fix up history
 #  x objectify keymap
