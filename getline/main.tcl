@@ -7,7 +7,6 @@
 #  - inter-line nav without excessive redraw
 #  - a manual, with that call graph
 # TODO:
-#  - up/down navigation in lines
 #  x char-wise nav
 #  x line-wise nav
 #  x wrap handling
@@ -26,13 +25,14 @@
 #  x objectify keymap
 #  x -options to Getline, move history etc into components
 #  x chan independence
+#  x up/down navigation in lines
+#  - cumulative yank (mode?)
 #  - use throw for accept .. and beep?
-#  ? prefix keymaps (eg: ^L=redraw-line; ^L^L=redraw-all-lines)
-#  - history-incremental-search .. this is a mode!
 #  - output attrs
 #  - completion ... with ui!
+#  ? prefix keymaps (eg: ^L=redraw-line; ^L^L=redraw-all-lines)
+#  - history-incremental-search .. this is a mode!
 #  ? numeric arguments
-#  - cumulative yank (mode?)
 #  - yank-last-arg?  Not yank ring, stuff that.
 #  ? mark
 #  ? transpositions
