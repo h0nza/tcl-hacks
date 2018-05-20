@@ -28,14 +28,15 @@
 #  x up/down navigation in lines
 #  x actions can have arguments (but not user-controlled eg counts)
 #  x use throw for accept and beep
-#  - support modes for:
-#   - cumulative yank
-#   - completion
-#   - history-incremental-search
+#  x basic completion interface
+#  ? modes support
 #  - output attrs
+#  - history-incremental-search
+#  - cumulative yank
+#  ? completion UI choices
 #  ? prefix keymaps (eg: ^L=redraw-line; ^L^L=redraw-all-lines)
 #  ? numeric arguments
-#  - yank-last-arg?  Not yank ring, stuff that.
+#  ? yank-last-arg?  Not yank ring, stuff that.
 #  ? mark
 #  ? transpositions
 #  ? undo

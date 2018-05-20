@@ -23,7 +23,9 @@ Call it in a loop:  `^C` (interrupt) will invoke `continue` and `^D` (eof) will 
 
 ## The Example
 
-`tclish` is a Tcl Interactive SHell.  It's just `tclsh` with affordances.
+`main.tcl` is a simple tclsh enhancer.
+
+`tclish` (will be) a Tcl Interactive SHell.  It's just `tclsh` with affordances.
 Use it from your `.tclshrc`, or to provide a debug/admin port to your application.
 
 This is probably the main way most people will enjoy Getline, but remember!  It doesn't have to feed the result to `eval`, nor does the input need to be Tcl code!  Just provide a suitable predicate to `-iscomplete` and send the result to `sqlite` .. or wherever you like!
@@ -45,7 +47,7 @@ Getline does all of (items in __ are incomplete):
  - multiple instances can exist serving different channels
  - lots of convenient keymaps, easy to add more
  - a simple yank buffer with __ cumulative yank "where you expect it"
- - __ completion callback support
+ - completion callback support with basic ui
  - around 1kloc of pure Tcl, crafted with readability and hackability in mind.  Go on, read it.
  - well-behaved __ package which doesn't pollute the root namespace
 
@@ -65,33 +67,23 @@ See `keymap.tcl` for the default maps, which use `^` syntax for control characte
 The "actions" performed by maps are just the name of methods on the `Getline` object.  Look them up in there, override them or add more with a mixin.
 
 
-## STATUS:
+## Completion
 
- - wrapping + multi-line in conjunction has some bugs now
- - redraws too much.  This can be seen to go wrong in wrapped lines
- - yeah it's slow, have you tried taking out the [after 10] in tty::emit?
- - still needs a little bit of factoring to make a well-behaved loadable module
- - most of core functionality is there and "tested" - see top of getline.tcl for details
- - I might want to specially name the exposable commands - eg :forth ?
- - a call graph would be pretty neat to see
+The completion callback takes two strings:  text before the cursor and text after the cursor.  Often, the latter will be ignored.  "text" is the full multi-line input.
 
-!IMPORTANT!: call [getline] from inside a coroutine, so it can yield to the event loop.  If you prefer a callback style, it's just a few lines of code:
+Callback can return:
+ - nothing, to indicate no possible completions (getline will flash)
+ - a getline command
 
-    proc getline_cb {cmd args} {
-        while 1 {$cmd {*}$args [getline]}
-    }
-    coroutine getline#[info cmdcount] getline_cb mycallbackproc
+For instance, this should be:
+ - {insert {the characters to insert at the point}}
+ - {flash-message {text of possible completions}}
+ - {flash-message {argument hints}}
+
+There's a simple example in main.tcl.
 
 
-## SUMMARY
-
-This is a simple-as-I-could-make it line-editing mode for terminals.  Call [getline] instead of [gets] to read input from a user who can use line-editing control- and meta- keystrokes to craft their input.  Basic history is provided.  Completion is coming.  Colour is under consideration.
-
-It knows how to present a prompt, navigate about an editing area, arbitrarily insert and delete, represent non-printable characters (with multi-char output sequences, which navigate correctly) and wrap at EOL.  Multi-line editing works and history is supported.
-
-Key sequences are mapped to editing commands with a simple syntax (^C, ^[) so you can easily extend.
-
-The public interface is [getline], which should be called in a coroutine so it can [yield] to the event loop and only wake up when input is received .. and only return when there is a complete line, or the user presses ^C (yieldto continue) or ^D (which should yieldto break).
+## Internals
 
 The project is structured:
 
@@ -116,5 +108,5 @@ we use [exec stty] to put the tty in raw mode and turn ^C/^D into normal charact
 
 Signal handling would be nice for sigwinch.  For now, the redraw command calls [stty size] so just hit ^L if your window size changes.
 
-keymap compiles the given key map into a trie, which is traversed as input tokens come in.  If a sequence is completed, it emits {TOKEN xxx} which getline uses to dispatch to command ::getline::xxx.  If a sequence is broken, it is reported to getline as {LITERAL} and gets inserted as actually typed.
+keymap compiles the given key map into a trie, which is traversed as input tokens come in.  If a sequence is completed, it emits {TOKEN xxx} which getline uses to dispatch to a method on getline.  If a sequence is interrupted by a non-sequence char, everything entered so far is reported to getline as {LITERAL} and gets inserted as actually typed.
 
