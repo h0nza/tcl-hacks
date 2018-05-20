@@ -203,7 +203,7 @@ namespace eval getline {
             lset Lines $Lineidx [input get]
             set idx $Lineidx
             while {![my is-first-line]} { my prior-line }
-            while {$Lineidx > $idx}      { my next-line }
+            while {$Lineidx < $idx}      { my next-line }
             my goto-column $pos
         }
         method redraw-following {} {
