@@ -48,7 +48,7 @@ Getline does all of (items in __ are incomplete):
  - lots of convenient keymaps, easy to add more
  - a simple yank buffer with __ cumulative yank "where you expect it"
  - completion callback support with basic ui
- - around 1kloc of pure Tcl, crafted with readability and hackability in mind.  Go on, read it.
+ - under 2kloc of pure Tcl, crafted with readability and hackability in mind.  Go on, read it.
  - well-behaved __ package which doesn't pollute the root namespace
 
 .. all in a nice Tcl'ish package, which in truth gets most of the above goodness from Tcl itself.
