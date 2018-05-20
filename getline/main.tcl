@@ -79,46 +79,27 @@ proc main {args} {
     chan event stdin readable [info coroutine]
 
     set prompt "\[[info patch]\]% "
-    Getline create getline -prompt $prompt -completer complete-word
-
-    #watchexec getline
+    Getline create getline \
+                        -prompt $prompt \
+                        -completer complete-word \
+    ;#
+    # -iscomplete complete?
+    # -history $obj
+    #getline add-maps [read $mapsfile]
 
     finally getline destroy
 
     while 1 {
         set input [getline getline]             ;# can return -code break/continue
-        puts " -> {[srep $input]}"
-    }
-}
-
-if 0 {
-    proc complete? {s} {info complete $s\n}
-    proc complete-tcl-command {s} {
-        # .. use procmap
-        # return list of possible completions
-    }
-    # complete modes: first, cycle, showbelow, ..
-    Getline create getline \
-                    -chan stdin \
-                    -prompt "\[[info patchlevel]\]% " \
-                    -history % \
-                    -iscomplete complete? \
-                    -complete-mode cycle \
-                    -completer complete-tcl-command
-    getline add-maps [read $mapsfile]
-    while 1 {
-        set cmd [getline getline]
         try {
-            uplevel #0 $cmd
+            uplevel #0 $input
         } on ok {res opt} {
-            # getline emit " $res" {bold}
-            puts " $res"
-        } on error {err opt} {
-            # getline emit " $error" {fg red bold}
-            puts stderr "Error: $err"
+            if {$res eq ""} continue
+            puts [tty::attr bold]\ [list $res][tty::attr]
+        } on error {res opt} {
+            puts [tty::attr fg red bold]\ $res[tty::attr]
         }
     }
-    getline destroy
 }
 
 coroutine Main try {
