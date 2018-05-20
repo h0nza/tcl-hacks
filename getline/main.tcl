@@ -27,7 +27,7 @@
 #  x chan independence
 #  x up/down navigation in lines
 #  x actions can have arguments (but not user-controlled eg counts)
-#  - use throw for accept and beep
+#  x use throw for accept and beep
 #  - support modes for:
 #   - cumulative yank
 #   - completion
