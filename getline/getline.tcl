@@ -88,7 +88,7 @@ namespace eval getline {
                 set pat $opt*
                 set matched 0
                 dict for {key script} $OptSpec {
-                    if {[string match $pat* $opt]} {
+                    if {[string match $pat* $key]} {
                         try $script
                         set matched 1
                         break
