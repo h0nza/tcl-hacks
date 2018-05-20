@@ -134,6 +134,7 @@ namespace eval getline {
                         # don't worry
                     } trap {GETLINE BEEP} {msg} {
                         my beep $msg
+                        continue
                     } trap {GETLINE RETURN} {res} {
                         return $res
                     } trap {GETLINE BREAK} {} {
@@ -167,7 +168,7 @@ namespace eval getline {
 
         # action methods:
         method sigpipe {} {
-            if {[input get] ne ""}  { my beep "sigpipe with [string length [input get]] chars"; return }
+            if {[input get] ne ""}  { throw {GETLINE BEEP} "sigpipe with [string length [input get]] chars" }
             throw {GETLINE BREAK} ""
         }
         method sigint {}      { throw {GETLINE CONTINUE} "" }
@@ -269,7 +270,7 @@ namespace eval getline {
                 my prior-line
                 my goto-column end
             }
-            if {[input pos] < 1} {my beep "back at BOL"; return}
+            if {[input pos] < 1} {throw {GETLINE BEEP} "back at BOL"}
             set n [expr {min($n, [input pos])}]
             if {$n == 0} return
             output back [string length [srep [input back $n]]]
@@ -282,7 +283,7 @@ namespace eval getline {
                 my next-line
                 my goto-column 0
             }
-            if {[input rpos] < 1} {my beep "forth at EOL"; return}
+            if {[input rpos] < 1} {throw {GETLINE BEEP} "forth at EOL"}
             set n [expr {min($n, [input rpos])}]
             if {$n == 0} return
             output forth [string length [srep [input forth $n]]]
@@ -300,7 +301,7 @@ namespace eval getline {
                 my insert $s
                 my redraw-following
             }
-            if {[input pos] < 1} {my beep "backspace at BOL"; return}
+            if {[input pos] < 1} {throw {GETLINE BEEP} "backspace at BOL"}
             set n [expr {min($n, [input pos])}]
             if {$n == 0} return
             set in [input backspace $n]
@@ -317,7 +318,7 @@ namespace eval getline {
                 my back [string length $rest]
                 my redraw-following
             }
-            if {[input rpos] < 1} {my beep "delete at EOL"; return}
+            if {[input rpos] < 1} {throw {GETLINE BEEP} "delete at EOL"}
             set n [expr {min($n, [input rpos])}]
             if {$n == 0} return
             set in [input delete $n]
@@ -351,7 +352,7 @@ namespace eval getline {
         method is-last-line {}      { expr {$Lineidx == [llength $Lines]-1} }
 
         method prior-line {} {
-            if {[my is-first-line]} {my beep "No prior line"; return}
+            if {[my is-first-line]} {throw {GETLINE BEEP} "No prior line"}
             my goto-column 0
             lset Lines $Lineidx [input get]
             incr Lineidx -1
@@ -362,7 +363,7 @@ namespace eval getline {
             my redraw-line
         }
         method next-line {} {
-            if {[my is-last-line]} {my beep "No next line"; return}
+            if {[my is-last-line]} {throw {GETLINE BEEP} "No next line"}
             my goto-column end
             lset Lines $Lineidx [input get]
             incr Lineidx 1
@@ -474,24 +475,24 @@ namespace eval getline {
 
         method history-prev {} {
             set s [my History prev [my get]]
-            if {$s eq ""}   { my beep "no more history!"; return }
+            if {$s eq ""}   { throw {GETLINE BEEP} "no more history!" }
             my replace-input $s
         }
         method history-next {} {
             set s [my History next [my get]]
-            if {$s eq ""}   { my beep "no more history!"; return }
+            if {$s eq ""}   { throw {GETLINE BEEP} "no more history!" }
             my replace-input $s
         }
         method history-prev-starting {} {
             set pos [input pos]
             set s [my History prev-starting [input pre] [my get]]
-            if {$s eq ""}   { my beep "no more matching history!"; return }
+            if {$s eq ""}   { throw {GETLINE BEEP} "no more matching history!" }
             my replace-input $s $pos
         }
         method history-next-starting {} {
             set pos [input pos]
             set s [my History next-starting [input pre] [my get]]
-            if {$s eq ""}   { my beep "no more matching history!"; return }
+            if {$s eq ""}   { throw {GETLINE BEEP} "no more matching history!" }
             my replace-input $s $pos
         }
 
