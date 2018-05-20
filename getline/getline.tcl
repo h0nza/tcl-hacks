@@ -112,7 +112,11 @@ namespace eval getline {
 
         # for mixins to intercept user actions:
         method Invoke {cmd args} {
-            my $cmd {*}$args
+            try {
+                my $cmd {*}$args
+            } trap {TCL LOOKUP METHOD} {} {
+                throw {GETLINE BEEP} "no such command: $cmd"
+            }
         }
 
         method Mode {mixin args} {
@@ -130,8 +134,6 @@ namespace eval getline {
                     try {
                         my Invoke {*}$tok
                         continue
-                    } trap {TCL LOOKUP METHOD *} {} {
-                        # don't worry
                     } trap {GETLINE BEEP} {msg} {
                         my beep $msg
                         continue
