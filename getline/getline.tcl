@@ -112,7 +112,7 @@ namespace eval getline {
 
         # for mixins to intercept user actions:
         method Invoke {cmd args} {
-            tailcall my $cmd {*}$args
+            my $cmd {*}$args
         }
 
         method Mode {mixin args} {
@@ -130,7 +130,17 @@ namespace eval getline {
                     try {
                         my Invoke {*}$tok
                         continue
-                    } trap {TCL LOOKUP METHOD *} {} { }
+                    } trap {TCL LOOKUP METHOD *} {} {
+                        # don't worry
+                    } trap {GETLINE BEEP} {msg} {
+                        my beep $msg
+                    } trap {GETLINE RETURN} {res} {
+                        return $res
+                    } trap {GETLINE BREAK} {} {
+                        return -code break
+                    } trap {GETLINE CONTINUE} {} {
+                        return -code continue
+                    }
                 }
                 foreach char $chars {
                     my insert $char
@@ -158,9 +168,9 @@ namespace eval getline {
         # action methods:
         method sigpipe {} {
             if {[input get] ne ""}  { my beep "sigpipe with [string length [input get]] chars"; return }
-            return -level 2 -code break
+            throw {GETLINE BREAK} ""
         }
-        method sigint {}      { return -level 2 -code continue }
+        method sigint {}      { throw {GETLINE CONTINUE} "" }
 
         method redraw {} {
             #my redraw-preceding
@@ -488,16 +498,15 @@ namespace eval getline {
         method accept {} {
             set input [my get]
             if {![string is space $input]}  { my History add $input }
-            my end
+            my very-end
             output emit \n
-            return -code return $input  ;# FIXME: forcing [tailcall accept] is terrible
+            throw {GETLINE RETURN} $input
         }
 
         method newline {} {
             set input [my get]
             if {[my Complete? $input]} {
-                my very-end
-                tailcall my accept
+                my accept
             } else {
                 my insert \n
             }
