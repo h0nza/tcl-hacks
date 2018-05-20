@@ -49,7 +49,7 @@ namespace eval getline {
         variable Prompt
         variable Chan
         method Complete? {input} { info complete $input\n }
-        method Completions {s}   { return "" }
+        method Completions {s t}   { return "" }
         method History {args} {
             History create History
             oo::objdefine [self] forward History History
@@ -114,8 +114,8 @@ namespace eval getline {
         method Invoke {cmd args} {
             try {
                 my $cmd {*}$args
-            } trap {TCL LOOKUP METHOD} {} {
-                throw {GETLINE BEEP} "no such command: $cmd"
+            } trap [list TCL LOOKUP METHOD $cmd] {} {
+                throw {GETLINE BEEP} "No such command: $cmd"
             }
         }
 
@@ -151,9 +151,10 @@ namespace eval getline {
             }
         }
 
+        forward flash-message   output flash-message
         method beep {msg} {
             output beep
-            if {$msg ne ""} { output flash-message $msg }
+            if {$msg ne ""} { my flash-message $msg }
         }
 
         method reset {} {
@@ -166,6 +167,20 @@ namespace eval getline {
         method get {} {
             lset Lines $Lineidx [input get]
             join $Lines \n
+        }
+        method pre {} {
+            if {[my is-first-line]} {
+                return [input pre]
+            } else {
+                return [string cat  [join [lrange $Lines 0 $Lineidx-1] \n]  \n  [input pre]]
+            }
+        }
+        method post {} {
+            if {[my is-last-line]} {
+                return [input post]
+            } else {
+                return [string cat  [input post]  \n  [join [lrange $Lines $Lineidx+1 end] \n]]
+            }
         }
 
         # action methods:
@@ -512,6 +527,14 @@ namespace eval getline {
             } else {
                 my insert \n
             }
+        }
+
+        method tab {} {
+            set comps [my Completions [my pre] [my post]]
+            if {$comps eq ""}   { throw {GETLINE BEEP} "no completions" }
+
+            # wait for it ..
+            my {*}$comps
         }
 
         method editor {} {

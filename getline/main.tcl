@@ -48,6 +48,28 @@ source getline.tcl
 
 namespace path ::getline
 
+proc complete-tcl-command {s t} {
+    set j [string length $s]
+    while {[info complete [string range $s $j end]\n} {incr j -1}
+    incr j
+    # now get clever with procmap
+}
+
+proc complete-word {s t} {
+    regexp {([a-zA-Z0-9_:-]*)$} $s -> w
+    if {$w eq ""} {return}
+    set l [string length $w]
+    set cs [info commands ${w}*]            ;# here's the dictionary!
+    if {[llength $cs] == 1} {
+        lassign $cs comp
+        set comp [string range $comp [string length $w] end]
+        return [list insert "$comp "]
+    } else {
+        return [list flash-message $cs]     ;# FIXME: abbreviate
+    }
+}
+
+
 proc main {args} {
     exec stty raw -echo <@ stdin
     trace add variable args unset {apply {args {exec stty -raw echo <@ stdin}}}
@@ -57,7 +79,7 @@ proc main {args} {
     chan event stdin readable [info coroutine]
 
     set prompt "\[[info patch]\]% "
-    Getline create getline -prompt $prompt
+    Getline create getline -prompt $prompt -completer complete-word
 
     #watchexec getline
 
