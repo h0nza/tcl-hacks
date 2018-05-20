@@ -1,0 +1,24 @@
+"completion" is a euphemism for giving the user a keystroke (or several) that they can use to ask for help.
+The help is contextual:  it has to do with the text before the cursor.
+In the simplest case, the "help" is to inserted directly as though the user typed it and we carry on.
+
+In other cases we might want to show a hint:  either a possible completion (to cycle through them), or a list of possible completions, or a usage hint / argument description.
+
+In the first and last case, the hint wants to go after the cursor:
+
+  - simulate insert + back, so that further text is bumped
+  - delete (but don't yank) the hint when the user performs any other action
+
+When there is a list of possible completions, we want to show them nearby.  On the immediately following line is acceptable, since it's either unused output space or a further input line we can redraw:
+
+  - emit completions on the next line (not input as no prompt)
+  - when user performs another action:
+    - if it unused space:
+      - replace it with spaces
+    - if it was further input:
+      - redraw-following
+
+This is a bit like I was thinking with cumulative yank (and search!):  it's kind of a mode.
+When completion is active, we want to intercept actions invoked by the user with a temporary mixin.
+
+Except a mixin isn't quite right:  think simpler.  A stack of objects checked by Invoke?

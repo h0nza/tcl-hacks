@@ -26,12 +26,14 @@
 #  x -options to Getline, move history etc into components
 #  x chan independence
 #  x up/down navigation in lines
-#  - cumulative yank (mode?)
-#  - use throw for accept .. and beep?
+#  x actions can have arguments (but not user-controlled eg counts)
+#  - use throw for accept and beep
+#  - support modes for:
+#   - cumulative yank
+#   - completion
+#   - history-incremental-search
 #  - output attrs
-#  - completion ... with ui!
 #  ? prefix keymaps (eg: ^L=redraw-line; ^L^L=redraw-all-lines)
-#  - history-incremental-search .. this is a mode!
 #  ? numeric arguments
 #  - yank-last-arg?  Not yank ring, stuff that.
 #  ? mark

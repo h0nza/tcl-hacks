@@ -110,6 +110,15 @@ namespace eval getline {
             lindex $Prompts $Lineidx
         }
 
+        # for mixins to intercept user actions:
+        method Invoke {cmd args} {
+            tailcall my $cmd {*}$args
+        }
+
+        method Mode {mixin args} {
+            oo::objdefine [self] mixin $mixin
+        }
+
         method getline {} {
 
             my reset
@@ -119,7 +128,7 @@ namespace eval getline {
                 lassign [keymap gettok] kind tok chars
                 if {$kind eq "TOKEN"} {
                     try {
-                        my $tok
+                        my Invoke {*}$tok
                         continue
                     } trap {TCL LOOKUP METHOD *} {} { }
                 }
@@ -320,11 +329,6 @@ namespace eval getline {
             if {[my get] ne $s} {error "didn't work!: [my get] [list $Lines]"}
             my goto $pos
         }
-
-        # this is the next spot to tackle: set-state updates the current-line state
-        # with the navigated-to line, once the cursor is put there (it redraws).  It's
-        # the place to choose (or generate) a new Prompt, and it can take on some of
-        # the cursor navigation responsibilities.  Used by next-line/prior-line
         method set-state {{s ""} {p 0}} {
             input set-state $s $p
             ssplit $s $p -> a b
