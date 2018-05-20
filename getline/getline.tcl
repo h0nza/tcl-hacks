@@ -7,8 +7,8 @@ namespace eval getline {
     source util.tcl     ;# ssplit
 
     proc rep {c} {
-        if {[string length $c] != 1} {error "Bad input: [binary encode hex $c]"}
-        if {[string is print $c]} {return $c}
+        if {[string length $c] != 1}    { error "Bad input: [binary encode hex $c]" }
+        if {[string is print $c]}       { return $c }
         return "\\x[binary encode hex $c]"
     }
 
@@ -27,7 +27,7 @@ namespace eval getline {
         expr {$i - $j}
     }
     proc word-length-after {s i} {
-        if {![regexp -indices -start $i {\M} $s ab]} {return $i}
+        if {![regexp -indices -start $i {\M} $s ab]} { return $i }
         lassign $ab a b
         expr {$a - $i}
     }
@@ -79,8 +79,8 @@ namespace eval getline {
             set OptSpec {
                 -prompt     { set Prompt $val }
                 -chan       { set Chan $val }
-                -history    { oo::objdefine [self] forward History [uplevel 1 [list namespace which $val]] }
-                -iscomplete { oo::objdefine [self] forward Complete? [uplevel 1 [list namespace which $val]] }
+                -history    { oo::objdefine [self] forward History     [uplevel 1 [list namespace which $val]] }
+                -iscomplete { oo::objdefine [self] forward Complete?   [uplevel 1 [list namespace which $val]] }
                 -completer  { oo::objdefine [self] forward Completions [uplevel 1 [list namespace which $val]] }
             }
 
@@ -153,7 +153,7 @@ namespace eval getline {
 
         method beep {msg} {
             output beep
-            if {$msg ne ""} {tailcall output flash-message $msg}
+            if {$msg ne ""} { output flash-message $msg }
         }
 
         method reset {} {
@@ -173,7 +173,7 @@ namespace eval getline {
             if {[input get] ne ""}  { throw {GETLINE BEEP} "sigpipe with [string length [input get]] chars" }
             throw {GETLINE BREAK} ""
         }
-        method sigint {}      { throw {GETLINE CONTINUE} "" }
+        method sigint {}            { throw {GETLINE CONTINUE} "" }
 
         method redraw {} {
             #my redraw-preceding
@@ -272,7 +272,7 @@ namespace eval getline {
                 my prior-line
                 my goto-column end
             }
-            if {[input pos] < 1} {throw {GETLINE BEEP} "back at BOL"}
+            if {[input pos] < 1}    { throw {GETLINE BEEP} "back at BOL" }
             set n [expr {min($n, [input pos])}]
             if {$n == 0} return
             output back [string length [srep [input back $n]]]
@@ -285,7 +285,7 @@ namespace eval getline {
                 my next-line
                 my goto-column 0
             }
-            if {[input rpos] < 1} {throw {GETLINE BEEP} "forth at EOL"}
+            if {[input rpos] < 1}   { throw {GETLINE BEEP} "forth at EOL" }
             set n [expr {min($n, [input rpos])}]
             if {$n == 0} return
             output forth [string length [srep [input forth $n]]]
@@ -303,7 +303,7 @@ namespace eval getline {
                 my insert $s
                 my redraw-following
             }
-            if {[input pos] < 1} {throw {GETLINE BEEP} "backspace at BOL"}
+            if {[input pos] < 1}    { throw {GETLINE BEEP} "backspace at BOL" }
             set n [expr {min($n, [input pos])}]
             if {$n == 0} return
             set in [input backspace $n]
@@ -320,7 +320,7 @@ namespace eval getline {
                 my back [string length $rest]
                 my redraw-following
             }
-            if {[input rpos] < 1} {throw {GETLINE BEEP} "delete at EOL"}
+            if {[input rpos] < 1}   { throw {GETLINE BEEP} "delete at EOL" }
             set n [expr {min($n, [input rpos])}]
             if {$n == 0} return
             set in [input delete $n]
@@ -330,16 +330,15 @@ namespace eval getline {
 
         method clear {} {
             set r [input get]
-            if {[input rpos]} {my kill-after}
-            if {[input pos]} {my kill-before}
-            while {![my is-last-line]} {my kill-next-line}
-            while {![my is-first-line]} {my kill-prior-line}
+            if {[input rpos]}           { my kill-after }
+            if {[input pos]}            { my kill-before }
+            while {![my is-last-line]}  { my kill-next-line }
+            while {![my is-first-line]} { my kill-prior-line }
             return $r
         }
         method replace-input {s {pos 0}} {
             my clear
             my insert $s
-            if {[my get] ne $s} {error "didn't work!: [my get] [list $Lines]"}
             my goto $pos
         }
         method set-state {{s ""} {p 0}} {
@@ -354,7 +353,7 @@ namespace eval getline {
         method is-last-line {}      { expr {$Lineidx == [llength $Lines]-1} }
 
         method prior-line {} {
-            if {[my is-first-line]} {throw {GETLINE BEEP} "No prior line"}
+            if {[my is-first-line]} { throw {GETLINE BEEP} "No prior line" }
             my goto-column 0
             lset Lines $Lineidx [input get]
             incr Lineidx -1
@@ -365,7 +364,7 @@ namespace eval getline {
             my redraw-line
         }
         method next-line {} {
-            if {[my is-last-line]} {throw {GETLINE BEEP} "No next line"}
+            if {[my is-last-line]}  { throw {GETLINE BEEP} "No next line" }
             my goto-column end
             lset Lines $Lineidx [input get]
             incr Lineidx 1
@@ -389,7 +388,7 @@ namespace eval getline {
         }
 
         method up {{n 1}} {
-            if {$n == 0} {return}
+            if {$n == 0}    { return }
             if {[my is-first-line]} {
                 if {[input pos]} { my home } else { my history-prev }
                 return
@@ -402,7 +401,7 @@ namespace eval getline {
             }
         }
         method down {{n 1}} {
-            if {$n == 0} {return}
+            if {$n == 0}    { return }
             if {[my is-last-line]} {
                 if {[input rpos]} { my end } else { my history-next }
                 return
@@ -433,43 +432,43 @@ namespace eval getline {
         method yank-word-after {}   { my yank [my kill-word-after] }
 
         method home {} {
-            if {[input pos]}                { my back      [input pos]
+            if       {[input pos]}          { my back      [input pos]
             } elseif {![my is-first-line]}  { my prior-line ; my home
             }
         }
         method end {} {
-            if {[input rpos]}               { my forth    [input rpos]
+            if       {[input rpos]}         { my forth    [input rpos]
             } elseif {![my is-last-line]}   { my next-line  ; my end
             }
         }
         method kill-before {} {
-            if {[input pos]}                { my backspace [input pos]
+            if       {[input pos]}          { my backspace [input pos]
             } elseif {![my is-first-line]}  { my prior-line ; my kill-line
             }
         }
         method kill-after {} {
-            if {[input rpos]}               { my delete   [input rpos]
+            if       {[input rpos]}         { my delete   [input rpos]
             } elseif {![my is-last-line]}   { my next-line  ; my kill-line
             }
         }
 
         method back-word {} {
-            if {[input pos]}                { my back      [word-length-before [input get] [input pos]]
+            if       {[input pos]}          { my back      [word-length-before [input get] [input pos]]
             } elseif {![my is-first-line]}  { my prior-line ; my end    ; my back-word
             }
         }
         method forth-word {} {
-            if {[input pos]}                { my forth     [word-length-after  [input get] [input pos]]
+            if       {[input pos]}          { my forth     [word-length-after  [input get] [input pos]]
             } elseif {![my is-last-line]}   { my next-line ; my end    ; my forth-word
             }
         }
         method kill-word-before {} {
-            if {[input pos]}                { my backspace [word-length-before [input get] [input pos]]
+            if       {[input pos]}          { my backspace [word-length-before [input get] [input pos]]
             } elseif {![my is-first-line]}  { my prior-line ; my end    ; my kill-word-before
             }
         }
         method kill-word-after {} {
-            if {[input pos]}                { my delete    [word-length-after  [input get] [input pos]]
+            if       {[input pos]}          { my delete    [word-length-after  [input get] [input pos]]
             } elseif {![my is-last-line]}   { my next-line  ; my home   ; my kill-word-after
             }
         }
