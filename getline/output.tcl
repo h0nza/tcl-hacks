@@ -28,7 +28,7 @@ oo::class create Output {
         } else {
             foreach c [split $s ""] {
                 puts -nonewline $chan $c
-                after 10
+                #after 10       ;# for debugging!
             }
         }
     }
