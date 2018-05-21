@@ -57,6 +57,15 @@ proc prepend {_str prefix} {
     set str $prefix$str
 }
 
+proc common-prefix {ss} {
+    set ss [lassign $ss s]
+    set i [expr {[string length $s] -1}]
+    foreach s1 $ss {
+        while {[string range $s 0 $i] ne [string range $s1 0 $i]} {incr i -1}
+    }
+    string range $s 0 $i
+}
+
 proc watchexec {name} {
     uplevel 1 [list trace add execution $name {enterstep leavestep} [coroutine [info cmdcount] watchexec_cb]]
 }

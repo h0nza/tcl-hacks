@@ -29,8 +29,8 @@
 #  x actions can have arguments (but not user-controlled eg counts)
 #  x use throw for accept and beep
 #  x basic completion interface
-#  ? modes support
 #  - output attrs
+#  ? modes support
 #  - history-incremental-search
 #  - cumulative yank
 #  ? completion UI choices
@@ -66,7 +66,13 @@ proc complete-word {s t} {
         set comp [string range $comp [string length $w] end]
         return [list insert "$comp "]
     } else {
-        return [list flash-message $cs]     ;# FIXME: abbreviate
+        set comp [common-prefix $cs]
+        set comp [string range $comp [string length $w] end]
+        if {$comp ne ""} {
+            return [list insert $comp]
+        } else {
+            return [list flash-message $cs]     ;# FIXME: abbreviate
+        }
     }
 }
 
