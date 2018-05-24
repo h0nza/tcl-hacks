@@ -1,10 +1,11 @@
 namespace eval getline {
 
-    source input.tcl
-    source output.tcl
-    source keymap.tcl
-    source history.tcl
-    source util.tcl     ;# ssplit
+    source [file dirname [info script]]/input.tcl
+    source [file dirname [info script]]/output.tcl
+    source [file dirname [info script]]/keymap.tcl
+    source [file dirname [info script]]/history.tcl
+    source [file dirname [info script]]/util.tcl     ;# ssplit
+    source [file dirname [info script]]/tty.tcl
 
     proc rep {c} {
         if {[string length $c] != 1}    { error "Bad input: [binary encode hex $c]" }
@@ -64,15 +65,21 @@ namespace eval getline {
             set Lines {""}
             set Lineidx 0
             set Prompt "getline> "
-            set Chan stdout
+            set Chan stdin
 
             my Configure {*}$args
+
+            if {$Chan eq "stdout"} {set Chan stdin}
+            set outchan [expr {$Chan eq "stdin" ? "stdout" : $Chan}]
+
+            chan configure $Chan -blocking 0
+            chan configure $outchan -buffering none
 
             set Prompts [list $Prompt]
 
             Input create             input
-            Output create            output $Chan
-            keymap::KeyMapper create keymap [expr {$Chan eq "stdout" ? "stdin" : $Chan}]
+            Output create            output $outchan
+            keymap::KeyMapper create keymap $Chan
         }
 
         method Configure {args} {
@@ -95,7 +102,7 @@ namespace eval getline {
                     }
                 }
                 if {!$matched} {
-                    return -code error "Unknown option; expected one of [join [dict keys $OptSpec] ", "]."
+                    return -code error "Unknown option \"$opt\"; expected one of [join [dict keys $OptSpec] ", "]."
                 }
             }
         }
@@ -124,6 +131,13 @@ namespace eval getline {
         }
 
         method getline {} {
+
+            if {[info coroutine] eq ""} {
+                return -code error "getline must be called within a coroutine!"
+            }
+
+            finally chan event $Chan readable [chan event $Chan readable]
+            chan event $Chan readable [info coroutine]
 
             my reset
 

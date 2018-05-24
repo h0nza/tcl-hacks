@@ -1,4 +1,4 @@
-source util.tcl ;# ssplit prepend
+#source util.tcl ;# ssplit prepend
 
 oo::class create Input {
 

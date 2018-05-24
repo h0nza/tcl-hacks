@@ -1,4 +1,4 @@
-source util.tcl    ;# lshift
+#source util.tcl    ;# lshift
 
 namespace eval tty {
     namespace path [namespace parent]

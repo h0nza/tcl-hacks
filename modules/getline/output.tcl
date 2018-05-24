@@ -1,5 +1,5 @@
-source util.tcl     ;# sinsert
-source tty.tcl
+#source util.tcl     ;# sinsert
+#source tty.tcl
 
 oo::class create Output {
 

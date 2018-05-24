@@ -1,0 +1,85 @@
+#!/usr/bin/env tclsh
+#
+catch {source [file dirname [info script]]/../boot.tcl}
+
+package require getline
+
+namespace eval tclish {
+    namespace path ::getline
+
+    proc complete-word {s t} {
+        regexp {([a-zA-Z0-9_:-]*)$} $s -> w
+        if {$w eq ""} {return}
+        set l [string length $w]
+        set cs [info commands ${w}*]            ;# here's the dictionary!
+        if {[llength $cs] == 1} {
+            lassign $cs comp
+            set comp [string range $comp [string length $w] end]
+            return [list insert "$comp "]
+        } else {
+            set comp [common-prefix $cs]
+            set comp [string range $comp [string length $w] end]
+            if {$comp ne ""} {
+                return [list insert $comp]
+            } else {
+                return [list flash-message $cs]     ;# FIXME: abbreviate
+            }
+        }
+    }
+
+    proc thunk {script {ns ::}} {
+        list apply [list args $script $ns]
+    }
+
+    proc callback {cmd args} {
+        set cmd [uplevel 1 [list namespace which $cmd]]
+        list $cmd {*}$args
+    }
+
+    proc finally {script args} {
+        set ns [uplevel 1 {namespace current}]
+        set script "$script $args"
+        tailcall trace add variable :#\; unset [list apply [list args $script $ns]]
+    }
+
+    proc atexit {script args} {
+        set ns [uplevel 1 {namespace current}]
+        set script "$script $args"
+        trace add execution exit enter [thunk $script $ns]
+    }
+
+
+    proc main {} {
+
+        exec stty raw -echo <@ stdin
+        finally {exec stty -raw echo <@ stdin}
+        atexit  {exec stty -raw echo <@ stdin}  ;# finally might not be enough!
+
+        set prompt "\[[info patch]\]% "
+
+        Getline create getline \
+                            -prompt $prompt \
+                            -completer complete-word \
+        ;#
+
+        finally [callback getline destroy]
+
+        while 1 {
+            set input [getline getline]             ;# can return -code break/continue
+            try {
+                uplevel #0 $input
+            } on ok {res opt} {
+                if {$res eq ""} continue
+                puts [tty::attr bold]\ [list $res][tty::attr]
+            } on error {res opt} {
+                puts [tty::attr fg red bold]\ $res[tty::attr]
+            }
+        }
+    }
+
+    coroutine Main try {
+        tclish::main {*}$::argv
+        exit
+    }
+    vwait forever
+}
