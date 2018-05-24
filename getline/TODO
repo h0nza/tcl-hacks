@@ -1,0 +1,48 @@
+
+# TODO:
+#  - output attrs
+#  ? modes support
+#  - history-incremental-search
+#  - cumulative yank
+#  ? completion UI choices
+#  ? prefix keymaps (eg: ^L=redraw-line; ^L^L=redraw-all-lines)
+#  ? numeric arguments
+#  ? yank-last-arg?  Not yank ring, stuff that.
+#  ? mark
+#  ? transpositions
+#  ? undo
+#  ? ^search^replace and !! and !prefix and !-n
+
+# WIBNI: continuation prompts, colours, completion
+#  - M-: to issue commands directly to getline
+#  - M-digit digit .. counts so \e5^X^E opens an editor with LAST FIVE LINES OMG
+#  - factor command definitions for symmetry, but don't go overboard
+#  - attrs
+#  - use exceptions for beep, result
+#  - inter-line nav without excessive redraw
+#  - a manual, with that call graph
+
+# DONE:
+#  x char-wise nav
+#  x line-wise nav
+#  x wrap handling
+#  x word-wise nav
+#  x history (basic)
+#  x history-search
+#  x basic yank
+#  x C-x C-e EDITOR (get smarter)
+#  x flash message
+#  x tcloo'ify
+#  x multi-line input (debug further)
+#   x fix line joinage: too much redraw by far
+#   x continuation prompts
+#   x multi-line redraw (just a keymap / action naming thing?)
+#  x fix up history
+#  x objectify keymap
+#  x -options to Getline, move history etc into components
+#  x chan independence
+#  x up/down navigation in lines
+#  x actions can have arguments (but not user-controlled eg counts)
+#  x use throw for accept and beep
+#  x basic completion interface
+# OPTIMISATION:

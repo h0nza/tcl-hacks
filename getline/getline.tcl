@@ -370,6 +370,15 @@ namespace eval getline {
             my goto-column 0
             lset Lines $Lineidx [input get]
             incr Lineidx -1
+            ### the following could be (to eliminate set-state)
+            # set line [lindex $Lines $Lineidx]
+            # input set-state $line [string length $line]
+            # set rep [srep $line]
+            # set wraps [output wrap 0 [string length [my Prompt]$rep]]    ;# output repwrap {*}[my Prompt] + {*}$rep
+            # output emit [tty::up [expr {1+$wraps}]]
+            # output reset [my Prompt]
+            # output insert $rep
+            ## my goto-column $col
             my set-state [lindex $Lines $Lineidx]
             set  nrows [output wrap 0 [output len]]  ;# hmmm
             incr nrows 1

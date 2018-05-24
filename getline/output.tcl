@@ -3,6 +3,10 @@ source tty.tcl
 
 oo::class create Output {
 
+    # insert has to take {str ?attr? ?...?}
+    # repwrap takes the same
+    # output becomes an {attr str ...} list
+    # .. all the operations using $output need to be re-jiggerd
     variable chan
     variable output
     variable pos
@@ -38,12 +42,12 @@ oo::class create Output {
         set i [expr {$i / $cols}]
         return [expr {abs($i-$j)}]
     }
-    method eol? {p} {expr {$p % $cols == 0}}
+    method eol? {p}             {expr {$p % $cols == 0}}
 
-    method get {} {return $output}
-    method len {} {string length $output}
-    method pos {}  {return $pos}
-    method rpos {} {expr {[string length $output]-$pos}}
+    method get {{i 0} {j end}}  {string range $output $i $j}
+    method len {}               {string length $output}
+    method pos {}               {return $pos}
+    method rpos {}              {expr {[string length $output]-$pos}}
 
     method reset {prompt} {
         set r [my get]
@@ -52,7 +56,6 @@ oo::class create Output {
         my emit [tty::goto-col 0]
         my emit [tty::erase-to-end]
         my insert $prompt
-        #my redraw
         return $r
     }
     method set-state {s p} {
