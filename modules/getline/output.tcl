@@ -18,12 +18,29 @@ oo::class create Output {
         namespace path [list [namespace qualifiers [self class]] {*}[namespace path]]
         set pos 0
         set output ""
-        lassign [exec stty size <@ stdin] rows cols
+        lassign [my size] rows cols
         set chan $Chan
     }
 
     destructor {
         catch {after cancel $flashid}
+    }
+
+    # we call this a lot because no SIGWINCH handler
+    method size {} {
+        try {
+            lassign [exec stty size <@ stdin] rows cols
+            return [list $rows $cols]
+        } on error {} {
+            set stty [exec stty -a <@ stdin]
+            if {[regexp {rows (= )?(\d+); columns (= )?(\d+)} $err -> _ rows _ cols]} {
+                return [list $rows $cols]
+            }
+            if {[regexp { (\d+) rows; (\d+) columns;} $err -> rows cols]} {
+                return [list $rows $cols]
+            }
+            return [list 25 80]     ;# fallback .. provide something better please!
+        }
     }
 
     method emit {s} {
@@ -64,7 +81,7 @@ oo::class create Output {
     }
 
     method redraw {} {
-        lassign [exec stty size <@ stdin] rows cols     ;# because no SIGWINCH
+        lassign [my size] rows cols     ;# because no SIGWINCH
         set dy [my wrap 0 [my pos]]
         if {$dy} {my emit [tty::up $dy]}
         my emit [tty::goto-col 0]
@@ -149,7 +166,7 @@ oo::class create Output {
     method flash-message {msg} {
         catch {after cancel $flashid}
         my emit [tty::save]
-        lassign [exec stty size] rows cols
+        lassign [my size] rows cols
         my emit [tty::goto 0 [expr {$cols - [string length $msg] - 2}]]
         my emit [tty::attr bold]
         my emit " $msg "
