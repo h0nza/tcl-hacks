@@ -24,6 +24,10 @@ modules.  Just put that in the command-line:
 
     $ tclsh boot.tcl hacks/Window-0.tm
 
+Or use 'tclish':
+
+    $ ./bin/tclish
+
 
 !NOTE!:  the contents of this repository often lag dreadfully behind what I'm
 actually using in live projects.  If anything seems particularly funky, or
