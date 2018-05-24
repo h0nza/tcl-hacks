@@ -59,7 +59,7 @@ namespace eval tclish {
 
         Getline create getline \
                             -prompt $prompt \
-                            -completer complete-word \
+                            -completer [callback complete-word] \
         ;#
 
         finally [callback getline destroy]
