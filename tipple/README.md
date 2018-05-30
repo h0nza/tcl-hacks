@@ -32,10 +32,14 @@ Create a new environment in `DIR`
 
 Set up your environment for working in `DIR`
 
-    tipple install PKG ?VERSION? ?ARCH?
-    tipple install repo-url
+    DIR/bin/tclsh
 
-Add packages to repo
+Run system `tclsh` with environment from `DIR/bin/activate`.
+
+    tipple install PKG ?VERSION? ?ARCH?
+    tipple install REPO-URL ?CHECKOUT?
+
+Add packages to environment
 
 
 ## Filesystem
@@ -51,6 +55,7 @@ Tipple creates a project directory consisting of:
 
 Also:
 
+    tipple.txt  -- configuration
     src/        -- where source repos/archives get downloaded and unpacked.  Do Not put this in starpacks.
 
 
@@ -67,7 +72,7 @@ Also:
 
 Packages can be fetched from:
 
- * teapot:  one of the urls specified in ???
+ * teapot:  one of the urls specified in `tipple.txt`
  * tarball:  local or remote path to archive, which must be *well-behaved*
  * filesystem path:  local path to directory, which must be *well-behaved*
  * git repo:  `git+$url`, must be *well-behaved*
@@ -105,6 +110,13 @@ The format is as simple as can be:
     
     # empty lines are allowed, and ignored
     
+    # specify teapot repos to use, in order of preference
+    teapot https://teapot.rkeene.org/
+    teapot https://teapot.activestate.org/
+    
+    # MAYBE: optionally specify architecture for fetching binary pkgs from teapot
+    architecture OS ARCH
+    
     # require from teapot, latest version
     require package-name
     
@@ -122,9 +134,11 @@ The format is as simple as can be:
 
 ## Inspiration / see also
 
- * https://teaparty.rkeene.org/ - `teapot-client` from here is used
- * https://github.com/wduquette/tcl-quill/
- * https://github.com/AngryLawyer/mug/
+ * <https://teaparty.rkeene.org/> - `teapot-client` from here is used
+ * <https://github.com/wduquette/tcl-quill/>
+ * <https://github.com/AngryLawyer/mug/>
  * python's `pip` + `virtualenv`
- * https://chiselapp.com/user/aspect/repository/sdx/
+
+ * <https://chiselapp.com/user/aspect/repository/sdx/wiki?name=howto>
+ * `../hacks/cuppa` has some stuff for processing teapot + gutter metadata
 
