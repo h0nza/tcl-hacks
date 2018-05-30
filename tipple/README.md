@@ -26,11 +26,11 @@ Non-goals:
 
     ./tipple init DIR
 
-Create a new environment in DIR
+Create a new environment in `DIR`
 
     . DIR/bin/activate
 
-Set up your environment for working in DIR
+Set up your environment for working in `DIR`
 
     tipple install PKG ?VERSION? ?ARCH?
     tipple install repo-url
@@ -70,8 +70,8 @@ Packages can be fetched from:
  * teapot:  one of the urls specified in ???
  * tarball:  local or remote path to archive, which must be *well-behaved*
  * filesystem path:  local path to directory, which must be *well-behaved*
- * git repo:  git+$url, must be *well-behaved*
- * fossil repo:  fossil+$url, must be *well-behaved*
+ * git repo:  `git+$url`, must be *well-behaved*
+ * fossil repo:  `fossil+$url`, must be *well-behaved*
 
 A *well-behaved* package source is expected to Install Correctly by the following means:
 
@@ -97,7 +97,7 @@ This is done with a simple text format `tipple.txt`, which is found in:
  * the root of the tipple environment (DIR)
  * the root of a "well-behaved" package
 
-tipple maintains DIR/tipple.txt by appending to it, and will look for tipple.txt in any packages it's asked to install.
+tipple maintains `DIR/tipple.txt` by appending to it, and will look for `tipple.txt` in any packages it's asked to install.
 
 The format is as simple as can be:
 
@@ -125,6 +125,6 @@ The format is as simple as can be:
  * https://teaparty.rkeene.org/ - `teapot-client` from here is used
  * https://github.com/wduquette/tcl-quill/
  * https://github.com/AngryLawyer/mug/
- * python's pip + virtualenv
+ * python's `pip` + `virtualenv`
  * https://chiselapp.com/user/aspect/repository/sdx/
 
