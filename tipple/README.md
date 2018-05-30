@@ -13,8 +13,8 @@ Goals:
 
 Requirements:
 
- * a unix-like environment
  * Tcl 8.6+
+ * a unix-like environment (this limitation may be revisited in future)
  * any of `curl`, `wget`, `fetch`
  * for installing from repos, `git`, `fossil`
 
@@ -54,12 +54,12 @@ Add packages to environment, from any of:
 
 Tipple creates a project directory consisting of:
 
-    bin/        -- executables
-    lib/        -- pkgIndex.tcl style packages
-    modules/    -- .tm style modules
-    bin/activate    -- source-able script that sets up the environment
-    bin/tipple      -- tipple itself
-    bin/tclsh       -- wrapper for system tclsh that sources activate first
+    bin/                -- executables
+    lib/tclX.Y          -- pkgIndex.tcl style packages
+    lib/tclX/site-tcl/  -- .tm style modules
+    bin/activate        -- source-able script that sets up the environment
+    bin/tipple          -- tipple itself
+    bin/tclsh           -- wrapper for system tclsh that sources activate first
 
 Also:
 
@@ -97,35 +97,41 @@ It must *not*:
  * rely at runtime on anything not in these directories
  * require path-dependent preprocessing
 
+The source directory will be left around (in `DIR/src`) so users can view documentation and examples in there.
+
 *(means to install packages according to metadata in the form of `tipple.txt` or other "blessed" formats will come soon)*
 
 
-## Metadata
+## Environment Metadata:  `tclenv.txt`
 
-It's useful for tipple to:
-
- * track what packages it has already installed in a repo
- * recursively install requirements of a given package
-
-This is done with a simple text format `tipple.txt`, which is found in:
-
- * the root of the tipple environment (DIR)
- * the root of a "well-behaved" package
-
-tipple maintains `DIR/tipple.txt` by appending to it, and will look for `tipple.txt` in any packages it's asked to install.
-
-The format is as simple as can be:
+At the root of the environment, `tclenv.txt` records some metadata about the environment.  It looks like:
 
     # this is a comment, as you might expect
+    # empty lines are ignored
     
-    # empty lines are allowed, and ignored
+    tcl_version 8.6
     
-    # specify teapot repos to use, in order of preference
+    # directories where things are installed to:
+    lib_dir     lib/tcl8.6
+    tm_dir      lib/tcl8/site-tcl
+    
+    # teapot repos to use, in order of preference
     teapot https://teapot.rkeene.org/
     teapot https://teapot.activestate.org/
     
     # MAYBE: optionally specify architecture for fetching binary pkgs from teapot
     architecture OS ARCH
+
+
+## Package Metadata: `tipple.txt`
+
+Tipple looks in the root of any package it installs for `tipple.txt`, which can specify requirements that will be satisfied recursively.  It looks like:
+
+    # this is a comment, as you might expect
+    # empty lines are allowed, and ignored
+    
+    # strictly optional.
+    require Tcl 8.6
     
     # require from teapot, latest version
     require package-name
@@ -140,6 +146,16 @@ The format is as simple as can be:
     # require from fossil, latest trunk or specific checkout
     require fossil+https://chiselapp.com/user/somebody/repository/somepackage
     require fossil+https://chiselapp.com/user/somebody/repository/somepackage branch-or-tag-or-commit-id
+
+
+### Coming soon
+
+A `tipple.txt` file might also want to be written for an upstream repo that we don't control.  This **will** be supported by creating a local `tipple.txt` that can use additional directives:
+
+    provide somepackage 0.1.2
+    source https://some.url/tarball.tar.gz
+    require some-dependency
+    patch some-file.patch
 
 
 ## Use cases (mostly articulated by stevel)
@@ -163,6 +179,7 @@ Related, but beyond the scope of this project:
 
  * <https://chiselapp.com/user/aspect/repository/sdx/wiki?name=howto>
  * `../hacks/cuppa` has some stuff for processing teapot + gutter metadata
+ * <https://sourceforge.net/projects/kbskit/> inspired some of the `tipple.txt` commands
 
 Bigger, more capable but much hairier things:
 

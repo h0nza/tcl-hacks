@@ -48,9 +48,9 @@ namespace eval tipple {
         set tclver [info tclversion]
         regexp {^(\d+).(\d+)} $tclver -> majver minver
 
-        set bindir $topdir/bin
-        set libdir $topdir/lib/tcl$tclver
-        set moddir $topdir/lib/tcl${majver}/site-tcl
+        set bindir $topdir/[set relbindir bin]
+        set libdir $topdir/[set rellibdir lib/tcl$tclver]
+        set moddir $topdir/[set relmoddir lib/tcl${majver}/site-tcl]
 
         puts "mkdir -p $topdir $bindir $libdir $moddir"
         file mkdir $topdir $bindir $libdir $moddir
@@ -81,11 +81,11 @@ namespace eval tipple {
 
         }
 
-        createfile $topdir/tipple.txt [subst {
+        createfile $topdir/tclenv.txt [subst {
             # Tcl environment initialised at [clock format [clock seconds]]
             tcl_version $tclver
-            lib_dir [list $libdir]
-            tm_dir  [list $moddir]
+            lib_dir [list $rellibdir]
+            tm_dir  [list $relmoddir]
 
         }]
     }
