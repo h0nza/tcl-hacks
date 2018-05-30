@@ -1,5 +1,13 @@
 #!/usr/bin/env tclsh
 #
+# This is a basic interactive tclsh helper using getline for line-editing and completion.
+#
+# It needs a bit more snazz, eventually to be provided by:
+#  - ../cli:  loading scripts, interactive helpers, repl scope
+#  - ../procmap:  semi-intelligent completion
+#
+# History and Completion will get re-used in tksh (part of snot).
+#
 catch {source [file dirname [info script]]/../boot.tcl}
 
 package require getline
