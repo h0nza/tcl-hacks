@@ -141,6 +141,13 @@ The format is as simple as can be:
  * <https://github.com/AngryLawyer/mug/>
  * python's `pip` + `virtualenv`
 
+Related, but beyond the scope of this project:
+
  * <https://chiselapp.com/user/aspect/repository/sdx/wiki?name=howto>
  * `../hacks/cuppa` has some stuff for processing teapot + gutter metadata
 
+Bigger, more capable but much hairier things:
+
+ * <https://github.com/ActiveState/teapot>
+ * <https://core.tcl.tk/akupries/kettle/index>
+ * <http://fossil.etoyoc.com/fossil/odie/home>
