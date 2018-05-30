@@ -22,6 +22,7 @@ Non-goals:
 
  * building extensions from source.  Those can come from a teapot
  * doing more than the 80% necessary to bootstrap newbies
+ * installing Tcl
 
 
 ## Synopsis
@@ -41,7 +42,12 @@ Run system `tclsh` with environment from `DIR/bin/activate`.
     tipple install PKG ?VERSION? ?ARCH?
     tipple install REPO-URL ?CHECKOUT?
 
-Add packages to environment
+Add packages to environment, from any of:
+
+ * teapot
+ * a local directory or tarball
+ * a tarball on the internet
+ * a fossil or git repository
 
 
 ## Filesystem
@@ -82,14 +88,16 @@ Packages can be fetched from:
 
 A *well-behaved* package source is expected to Install Correctly by the following means:
 
-    cp -a lib/*     DIR/lib/
-    cp -a modules/* DIR/modules/
+    cp -a lib/*     $TCLLIBPATH
+    cp -a modules/* $TCL8_6_TM_PATH
     cp -a bin/*     DIR/bin/
 
 It must *not*:
 
  * rely at runtime on anything not in these directories
  * require path-dependent preprocessing
+
+*(means to install packages according to metadata in the form of `tipple.txt` or other "blessed" formats will come soon)*
 
 
 ## Metadata
@@ -132,6 +140,16 @@ The format is as simple as can be:
     # require from fossil, latest trunk or specific checkout
     require fossil+https://chiselapp.com/user/somebody/repository/somepackage
     require fossil+https://chiselapp.com/user/somebody/repository/somepackage branch-or-tag-or-commit-id
+
+
+## Use cases (mostly articulated by stevel)
+
+ * I want to install my own copies of packages that are not installed on the system, and I may not have root
+ * I want to install a more up-to-date copy of a package that is already installed on the system
+ * I want to wrap a script (as a starpack or just an archive) and include a copy of the dependent packages
+ * I want to run a script to download and install all the dependencies of a package or script that I have
+ * I want to publish a script or package that I have made, so users can easily install it with its dependencies
+ * I want to use a modified version of a third-party package in my project
 
 
 ## Inspiration / see also
