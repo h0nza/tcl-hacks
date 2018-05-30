@@ -1,5 +1,7 @@
 ## A simple no-magic Tcl package installer
 
+**T**rivial **i**nstaller for **p**ackages in a **p**ortable **l**ocal **e**nvironment.
+
 Goals:
 
  * easy for newbie adoption
