@@ -86,6 +86,13 @@ Packages can be fetched from:
  * git repo:  `git+$url`, must be *well-behaved*
  * fossil repo:  `fossil+$url`, must be *well-behaved*
 
+The source directory will be left around (in `DIR/src`) so users can view documentation and examples in there.
+
+
+## Well-behaved packages
+
+This section needs refreshing:  relying on paths like `lib` and `modules` doesn't work for many sources today; searching for `*.tm` and `pkgIndex.tcl` is likely to work better.
+
 A *well-behaved* package source is expected to Install Correctly by the following means:
 
     cp -a lib/*     $TCLLIBPATH
@@ -96,8 +103,6 @@ It must *not*:
 
  * rely at runtime on anything not in these directories
  * require path-dependent preprocessing
-
-The source directory will be left around (in `DIR/src`) so users can view documentation and examples in there.
 
 *(means to install packages according to metadata in the form of `tipple.txt` or other "blessed" formats will come soon)*
 
