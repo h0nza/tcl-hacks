@@ -119,8 +119,8 @@ At the root of the environment, `tclenv.txt` records some metadata about the env
     teapot https://teapot.rkeene.org/
     teapot https://teapot.activestate.org/
     
-    # MAYBE: optionally specify architecture for fetching binary pkgs from teapot
-    architecture OS ARCH
+    # MAYBE: optionally specify platform for fetching binary pkgs from teapot
+    platform OS-ARCH
 
 
 ## Package Metadata: `tipple.txt`
@@ -154,8 +154,20 @@ A `tipple.txt` file might also want to be written for an upstream repo that we d
 
     provide somepackage 0.1.2
     source https://some.url/tarball.tar.gz
-    require some-dependency
     patch some-file.patch
+    
+    # plus the usual:
+    require some-dependency
+
+
+### Possible extensions to `tipple.txt`
+
+I'm avoiding these, as they lie in the direction of hairy yaks, but noting them just the same.
+
+ * specifying multiple modules in the same repo has some appeal, though it adds complexity (and it's a job for teapot)
+ * directives saying what to install, in case `/lib` and `/modules` and `/bin` are inadequate
+
+The goal is not to grow into quill or kbskit.
 
 
 ## Use cases (mostly articulated by stevel)

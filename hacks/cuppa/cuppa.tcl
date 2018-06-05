@@ -23,7 +23,7 @@ namespace eval cuppa {
         sparc       sun4%
         sparc64     {sun4u sun4v}
         universal   %
-        ""          %
+        {""}        %
         powerpc     ppc
     }
 

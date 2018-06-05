@@ -29,7 +29,14 @@ namespace eval tipple {
     namespace export {[a-z]*}
 
     proc help {} {
-        puts "Subcommands: [lmap c [info commands [namespace current]::\[a-z\]*] {namespace tail $c}]"
+        puts "Subcommands:"
+        foreach pat [namespace export] {
+            foreach cmd [info commands [namespace current]::$pat] {
+                set args [info args $cmd]
+                set cmd [namespace tail $cmd]
+                puts "  $cmd $args"
+            }
+        }
     }
 
     proc init {topdir} {
@@ -37,8 +44,8 @@ namespace eval tipple {
         set topdir [file normalize $topdir]
 
         if {[file exists $topdir]} {
-            if {[file exists $topdir/tipple.txt]} {
-                return -code error "Error: $topdir/tipple.txt already exists!"
+            if {[file exists $topdir/tclenv.txt]} {
+                return -code error "Error: $topdir/tclenv.txt already exists!"
             }
             puts "Setting up in existing directory: $topdir"
         } else {
@@ -84,10 +91,46 @@ namespace eval tipple {
         createfile $topdir/tclenv.txt [subst {
             # Tcl environment initialised at [clock format [clock seconds]]
             tcl_version $tclver
-            lib_dir [list $rellibdir]
-            tm_dir  [list $relmoddir]
+            platform    [platform::identify]
+
+            lib_dir     [list $rellibdir]
+            tm_dir      [list $relmoddir]
 
         }]
+    }
+
+    proc install {pkgname {pkgver ""}} {
+        # download: pkgname is one of:
+        #  * just a package name - use teapot
+        #  * a local path - goto install
+        #  * a url - download it
+        #   * if it's a zip or tarball, extract it in DIR/src and goto install
+        #   * otherwise install as a tm
+        #  * fossil+$url or git+$url - clone it in DIR/src
+        #
+        # install:
+        #   * look for tipple.txt
+        #   * install files
+        #    ? if tipple.txt specified, follow its directions
+        #    * lib/ modules/ bin/
+        #    ? or if there's /*.tm or /pkgIndex.tcl, the whole shebang
+        #   * record package presence in log (+tclenv.txt?)
+    }
+
+    proc _read_txt {filename} {
+        set fd [open $filename r]
+        try {
+            set res {}
+            while {[gets $fd line]>=0} {
+                if {[string match #* $line]} continue
+                if {$line eq ""} continue
+                set val [lassign $line key]
+                dict lappend res $key {*}$val
+            }
+            return $res
+        } finally {
+            close $fd
+        }
     }
 }
 
