@@ -68,14 +68,21 @@ namespace eval inet {
         tailcall ::gets $chan {*}$args
     }
 
-    proc read {chan args} {
-        if {![chan configure $chan -blocking]} {
+    proc read {chan {numChars Inf}} {
+        if {[chan configure $chan -blocking]} {
+            tailcall ::read $chan {*}$numChars
+        } else {
             set was [chan event $chan readable]
-            chan event $chan readable [list catch [info coroutine]]
-            yield
-            chan event $chan readable $was
+            chan event $chan readable [list [info coroutine]]
+            finally [list chan event $chan readable $was]
+            set data ""
+            while {[string length $data] < $numChars} {
+                yield
+                append data [::read $chan $numChars]
+                if {[eof $chan]} break
+            }
+            return $data
         }
-        tailcall ::read $chan {*}$args
     }
 
     proc after args {   ;# needs to wrap with [catch] in case the socket is killed while we're waiting
