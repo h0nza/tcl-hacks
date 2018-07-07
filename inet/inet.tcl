@@ -317,20 +317,24 @@ namespace eval inet {
 
         # authentication
         scan [read $chan 2] %c%c ver nmeth
-        if {$ver != 5} return
+        if {$ver != 5} {
+            error "Invalid SOCKS protocol version $ver (must be 5)"
+        }
         binary scan [read $chan $nmeth] c* meths
         if {0 in $meths} {          ;# no authentication! yay
             puts -nonewline $chan \x05\x00
         } elseif {2 in $meths} {    ;# user/passwd
             scan [read $chan 2] %c%c ver len
-            if {$ver != 1} return
+            if {$ver != 1} {
+                error "user/password authentication $ver not supported (must be 1)"
+            }
             set username [read $chan $len]
             scan [read $chan 1] %c len
             set password [read $chan $len]
             puts -nonewline $chan \1\0  ;# success!
         } else {                    ;# no supported auth methods
             puts -nonewline $chan \x05\xff
-            return
+            error "no supported auth methods out of: $meths"
         }
 
         # request
@@ -352,10 +356,10 @@ namespace eval inet {
 
         if {$cmd == 3} {        ;# UDP
             puts -nonewline $chan \5\7\0\3\0\0\0    ;# cmd not supported ":0"
-            return
+            error "UDP not supported"
         } elseif {$cmd == 2} {  ;# bind
             puts -nonewline $chan \5\7\0\3\0\0\0    ;# cmd not supported ":0"
-            return
+            error "bind not supported"
         } elseif {$cmd == 1} {  ;# connect
 
             set upchan [socket -async $dst $dpt]
