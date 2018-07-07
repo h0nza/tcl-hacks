@@ -118,13 +118,14 @@ namespace eval inet {
     proc service {name body} {
         set body [format {
             puts "Start [info coroutine]"
-            finally [list catch [list close $chan]]
             try {
                 %s
             } on error {e o} {
                 puts "Error in [info coroutine]: $e"
+            } finally {
+                catch {close $chan}
+                puts "End [info coroutine]"
             }
-            puts "End [info coroutine]"
         } $body]
         tailcall proc $name {chan} $body
     }
