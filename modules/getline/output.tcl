@@ -87,6 +87,7 @@ oo::class create Output {
         my emit [tty::goto-col 0]
         my emit [tty::erase-to-end]
         my emit $output
+        my emit [tty::erase-to-end]
         set dy [my wrap [my pos] [my rpos]]
         if {$dy} {my emit [tty::up $dy]}
         my emit [tty::goto-col [expr {1 + $pos % $cols}]]
