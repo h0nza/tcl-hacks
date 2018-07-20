@@ -408,9 +408,7 @@ namespace eval getline {
             lset Lines $Lineidx [input get]
             incr Lineidx 1
             my set-state [lindex $Lines $Lineidx]
-            set  nrows [output wrap 0 [output len]]  ;# hmmm
-            incr nrows 1
-            output emit [string repeat \n $nrows]
+            output emit \n
             my redraw-line
         }
 
