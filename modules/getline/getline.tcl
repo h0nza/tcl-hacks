@@ -362,11 +362,13 @@ namespace eval getline {
         }
 
         method clear {} {
-            set r [input get]
-            if {[input rpos]}           { my kill-after }
-            if {[input pos]}            { my kill-before }
-            while {![my is-last-line]}  { my kill-next-line  }
-            while {![my is-first-line]} { my kill-prior-line }
+            while {![my is-first-line]} { my prior-line }
+            my home
+            while 1 {
+                append r [my kill-after]
+                if {[my is-last-line]} { break }
+                append r [my delete]
+            }
             return $r
         }
         method replace-input {s {pos 0}} {
