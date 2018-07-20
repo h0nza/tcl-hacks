@@ -320,16 +320,19 @@ namespace eval getline {
 
         method backspace {{n 1}} {
             if {$n == 0} return
+            my flash-message "n = $n; pos = [input pos]; first-line? [my is-first-line]"
             while {$n > [input pos] && ![my is-first-line]} {
                 incr n -[input pos]
                 incr n -1
-                my kill-before
+                if {[input pos]} {my kill-before}
                 my prior-line
                 my goto-column end
-                set s [my kill-next-line]
-                my insert $s
+                set rest [my kill-next-line]
+                my insert $rest
+                my back [string length $rest]
                 my redraw-following
             }
+            if {$n == 0} return
             if {[input pos] < 1}    { throw {GETLINE BEEP} "backspace at BOL" }
             set n [expr {min($n, [input pos])}]
             if {$n == 0} return
@@ -342,6 +345,7 @@ namespace eval getline {
             while {$n > [input rpos] && ![my is-last-line]} {
                 incr n -[input rpos]
                 incr n -1
+                if {[input rpos]} {my kill-after}
                 set rest [my kill-next-line]
                 my insert $rest
                 my back [string length $rest]
@@ -359,7 +363,7 @@ namespace eval getline {
             set r [input get]
             if {[input rpos]}           { my kill-after }
             if {[input pos]}            { my kill-before }
-            while {![my is-last-line]}  { my kill-next-line }
+            while {![my is-last-line]}  { my kill-next-line  }
             while {![my is-first-line]} { my kill-prior-line }
             return $r
         }
@@ -486,6 +490,10 @@ namespace eval getline {
             if       {[input rpos]}         { my delete   [input rpos]
             } elseif {![my is-last-line]}   { my next-line  ; my kill-line
             }
+        }
+        method kill-line {} {
+            my end
+            my kill-before
         }
 
         method back-word {} {
