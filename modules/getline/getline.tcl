@@ -568,7 +568,7 @@ namespace eval getline {
 
         method editor {} {
             set fd [file tempfile fn]
-            puts $fd [input get]
+            puts $fd [my get]
             close $fd
             exec $::env(VISUAL) $fn <@ stdin >@ stdout 2>@ stderr
             set fd [open $fn r]
@@ -576,8 +576,7 @@ namespace eval getline {
             set data [string trimright $data \n]
             close $fd
             file delete $fn
-            my clear
-            my insert $data
+            my replace-input $data
         }
     }
 }
