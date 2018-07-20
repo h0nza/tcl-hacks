@@ -578,7 +578,7 @@ namespace eval getline {
             set data [string trimright $data \n]
             close $fd
             file delete $fn
-            my replace-input $data
+            my replace-input $data [my abs-pos]         ;# FIXME: this should be row, col
         }
     }
 }
