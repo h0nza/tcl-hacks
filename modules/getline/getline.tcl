@@ -320,7 +320,6 @@ namespace eval getline {
 
         method backspace {{n 1}} {
             if {$n == 0} return
-            my flash-message "n = $n; pos = [input pos]; first-line? [my is-first-line]"
             while {$n > [input pos] && ![my is-first-line]} {
                 incr n -[input pos]
                 incr n -1
