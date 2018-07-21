@@ -30,9 +30,12 @@ namespace eval procmap {
     proc DecodeUnknownArgs {err cmd} {
         set re [string map {` \"} {(?:[Bb]ad|[Uu]nknown(?: or ambiguous))? (?:(?:sub)?command|method|option|argument|mode) `([^`]*)`: (?:must|should) be(?: one of)?:? +(.*)}]
         if {[regexp $re $err -> subcmd alts]} {
-            set alts [regexp -all -inline {\w+} $alts]
+            set alts [regexp -all -inline -- {(?:-|\w)+} $alts]
             if {[lindex $alts end-1] eq "or"} {
                 set alts [lreplace $alts end-1 end-1]
+            }
+            if {[lrange $alts end-2 end] eq "or an integer"} {          ;# hack for [after]
+                set alts [lreplace $alts end-2 end]
             }
         } else {
             throw {PROCMAP DECODE} "Failed to decode Unknown message \"$err\""
@@ -48,6 +51,10 @@ namespace eval procmap {
         set qre [string map {` \"} { +`([^`]*)`}]
         if {[regexp $re $err -> match]} {
             set argspecs [lmap {_ match} [regexp -inline -all $qre $match] {
+                # hack for [zlib push]
+                if {[regexp {^::zlib (push|stream) mode } $match] && [regexp {^::zlib (push|stream) } $cmd]} {
+                    regsub { mode } $match " [lindex $cmd 2] " match
+                }
                 if {[string match $cmd* $match]} {
                     string range $match [string length $cmd]+1 end
                 } else {
@@ -306,7 +313,8 @@ namespace eval procmap {
                 puts "Unable to parse {$e}: $cmd"
             }
         } on ok {} {
-            return -code error "$cmd didn't squeal!"
+            puts "NO SQUEAL: $cmd"
+            return ""
         }
     }
     proc mapprocs {} {
@@ -362,36 +370,44 @@ namespace eval procmap {
             } else {
                 set res [procmap::examine $cmd]
             }
-            if {$cmd in $doms || -1 != [lsearch -glob [dict get $res arghelps] "subcommand*"]} {
+            dict lappend res arghelps   ;# makes it easier if we can assume this key exists
+            if {$cmd in $doms || -1 != [lsearch -regexp [dict get $res arghelps] "^(subcommand)"]} { ;# mode for zlib
                 set res [dict merge $res [procmap::examine [list {*}$cmd NOSUCHSUBCOMMANDEVEREVERISAYEVER]]]
+            }
+            foreach argspec [dict get $res arghelps] {
+                # option ?options? ?options...?
+                # "?-option ...?" "?-option value ...?" "?option value ..." "?-option value...?"
+                set re {\moptions?\M|\?-?options?\M[^?]*\?}
+                if {[regexp $re $argspec -> optstr]} {
+                    if {[string match "*value*" $optstr]} {
+                        regsub $re $argspec "-nosuchoption xxx" argspec
+                    } else {
+                        regsub $re $argspec "-nosuchoption" argspec
+                    }
+                    regsub -all {\?.*?\?} $argspec "" argspec
+                    regsub -all {\.\.\.} $argspec "" argspec
+                    regsub -all channelId $argspec [tempfile] argspec
+                    regsub -all channel $argspec [tempfile] argspec
+                    regsub -all className $argspec ::oo::class argspec
+                    regsub -all objName $argspec ::oo::object argspec
+                    regsub -all cmdname $argspec namespace argspec  ;# this should be an ensemble
+                    set res [dict merge $res [procmap::examine [list {*}$cmd {*}$argspec]]]
+                }
             }
             if {[dict exists $res subcommands]} {
                 lappend procs {*}[lmap sub [dict get $res subcommands] {list {*}$cmd $sub}]
             }
-            if {[dict exists $res arghelps]} {
-                foreach argspec [dict get $res arghelps] {
-                    # option ?options? ?options...?
-                    # "?-option ...?" "?-option value ...?" "?option value ..." "?-option value...?"
-                    set re {\moptions?\M|\?-?options?\M[^?]*\?}
-                    if {[regexp $re $argspec -> optstr]} {
-                        if {[string match "*value*" $optstr]} {
-                            regsub $re $argspec "-nosuchoption xxx" argspec
-                        } else {
-                            regsub $re $argspec "-nosuchoption" argspec
-                        }
-                        regsub -all {\?.*?\?} $argspec "" argspec
-                        regsub -all {\.\.\.} $argspec "" argspec
-                        regsub -all channelId $argspec stdin argspec
-                        regsub -all className $argspec ::oo::class argspec
-                        regsub -all objName $argspec ::oo::object argspec
-                        regsub -all cmdname $argspec namespace argspec  ;# this should be an ensemble
-                        set res [dict merge $res [procmap::examine [list {*}$cmd {*}$argspec]]]
-                    }
-                }
-            }
             puts ">> $res"
             dict set arghelp $cmd $res
         }
+    }
+
+    proc tempfile {} {
+        variable tempfile
+        if {![info exists tempfile]} {
+            set tempfile [file tempfile]
+        }
+        return $tempfile
     }
 }
 
@@ -418,6 +434,7 @@ if 0 {
         puts EXAMINE\t$cmd\t[procmap::examine $cmd]
     }
 }
+
 
 apply {{} {
     puts "Are you sure?  This could be dangerous."
