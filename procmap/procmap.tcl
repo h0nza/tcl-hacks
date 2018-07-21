@@ -385,10 +385,7 @@ namespace eval procmap {
                         regsub -all className $argspec ::oo::class argspec
                         regsub -all objName $argspec ::oo::object argspec
                         regsub -all cmdname $argspec namespace argspec  ;# this should be an ensemble
-                        puts "Res before: $res"
-                        puts "Calling: $cmd $argspec"
                         set res [dict merge $res [procmap::examine [list {*}$cmd {*}$argspec]]]
-                        puts "Res after: $res"
                     }
                 }
             }
