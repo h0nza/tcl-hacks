@@ -1,5 +1,5 @@
-# Tcl 8.6.4 from /home/aspect/tclenv/bin/tclsh at (1437662027) Fri Jul 24 00:33:47 AEST 2015
-#	tcl_platform(osVersion)      = 3.16.0-4-amd64
+# Tcl 8.6.8 from /bin/tclsh at (1532176769) Sat Jul 21 22:09:29 ACST 2018
+#	tcl_platform(osVersion)      = 4.17.3-200.fc28.x86_64
 #	tcl_platform(pointerSize)    = 8
 #	tcl_platform(byteOrder)      = littleEndian
 #	tcl_platform(threaded)       = 1
@@ -7,6 +7,7 @@
 #	tcl_platform(platform)       = unix
 #	tcl_platform(pathSeparator)  = :
 #	tcl_platform(os)             = Linux
+#	tcl_platform(engine)         = Tcl
 #	tcl_platform(user)           = aspect
 #	tcl_platform(wordSize)       = 8
 set ::procmap::procs {
@@ -269,6 +270,11 @@ set ::procmap::procs {
 	::upvar ::upvar
 	::tailcall ::tailcall
 	::encoding ::encoding
+	{::encoding convertfrom} ::tcl::encoding::convertfrom
+	{::encoding convertto} ::tcl::encoding::convertto
+	{::encoding dirs} ::tcl::encoding::dirs
+	{::encoding names} ::tcl::encoding::names
+	{::encoding system} ::tcl::encoding::system
 	::expr ::expr
 	::unset ::unset
 	::load ::load
@@ -308,7 +314,7 @@ set ::procmap::procs {
 }
 
 set ::procmap::arghelp {
-	::after {arghelps {{option ?arg ...?}}}
+	::after {arghelps {{option ?arg ...?}} subcommands {cancel idle info or an integer}}
 	::append {arghelps {{varName ?value ...?}}}
 	::apply {arghelps {{lambdaExpr ?arg ...?}}}
 	::array {arghelps {{subcommand ?arg ...?}} subcommands {anymore donesearch exists get names nextelement set size startsearch statistics unset}}
@@ -330,9 +336,9 @@ set ::procmap::arghelp {
 	::auto_qualify {arghelps {{cmd namespace}}}
 	::binary {arghelps {{subcommand ?arg ...?}} subcommands {decode encode format scan}}
 	{::binary decode} {arghelps {{subcommand ?arg ...?}} subcommands {base64 hex uuencode}}
-	{::binary decode base64} {arghelps {{?options? data}}}
-	{::binary decode hex} {arghelps {{?options? data}}}
-	{::binary decode uuencode} {arghelps {{?options? data}}}
+	{::binary decode base64} {arghelps {{?options? data}} subcommands strict}
+	{::binary decode hex} {arghelps {{?options? data}} subcommands strict}
+	{::binary decode uuencode} {arghelps {{?options? data}} subcommands strict}
 	{::binary encode} {arghelps {{subcommand ?arg ...?}} subcommands {base64 hex uuencode}}
 	{::binary encode base64} {arghelps {{?-maxlen len? ?-wrapchar char? data}}}
 	{::binary encode hex} {arghelps data}
@@ -346,7 +352,7 @@ set ::procmap::arghelp {
 	::chan {arghelps {{subcommand ?arg ...?}} subcommands {blocked close configure copy create eof event flush gets names pending pipe pop postevent push puts read seek tell truncate}}
 	{::chan blocked} {arghelps channelId}
 	{::chan close} {arghelps {{channelId ?direction?}}}
-	{::chan configure} {arghelps {{channelId ?-option value ...?}}}
+	{::chan configure} {arghelps {{channelId ?-option value ...?}} subcommands {blocking buffering buffersize encoding eofchar translation mode queue ttystatus xchar}}
 	{::chan copy} {arghelps {{input output ?-size size? ?-command callback?}}}
 	{::chan create} {arghelps {{mode cmdprefix}}}
 	{::chan eof} {arghelps channelId}
@@ -395,21 +401,26 @@ set ::procmap::arghelp {
 	{::dict update} {arghelps {{dictVarName key varName ?key varName ...? script}}}
 	{::dict values} {arghelps {{dictionary ?pattern?}}}
 	{::dict with} {arghelps {{dictVarName ?key ...? script}}}
-	::encoding {arghelps {{option ?arg ...?}}}
+	::encoding {arghelps {{subcommand ?arg ...?}} subcommands {convertfrom convertto dirs names system}}
+	{::encoding convertfrom} {arghelps {{?encoding? data}}}
+	{::encoding convertto} {arghelps {{?encoding? data}}}
+	{::encoding dirs} {arghelps ?dirList?}
+	{::encoding names} {arghelps {{}}}
+	{::encoding system} {arghelps ?encoding?}
 	::eof {arghelps channelId}
 	::error {arghelps {{message ?errorInfo? ?errorCode?}}}
 	::eval {arghelps {{arg ?arg ...?}}}
-	::exec {arghelps {{?-option ...? arg ?arg ...?}}}
+	::exec {arghelps {{?-option ...? arg ?arg ...?}} subcommands {ignorestderr keepnewline or}}
 	::exit {arghelps ?returnCode?}
 	::expr {arghelps {{arg ?arg ...?}}}
 	::fblocked {arghelps channelId}
-	::fconfigure {arghelps {{channelId ?-option value ...?}}}
+	::fconfigure {arghelps {{channelId ?-option value ...?}} subcommands {blocking buffering buffersize encoding eofchar translation mode queue ttystatus xchar}}
 	::fcopy {arghelps {{input output ?-size size? ?-command callback?}}}
 	::file {arghelps {{subcommand ?arg ...?}} subcommands {atime attributes channels copy delete dirname executable exists extension isdirectory isfile join link lstat mkdir mtime nativename normalize owned pathtype readable readlink rename rootname separator size split stat system tail tempfile type volumes writable}}
 	{::file atime} {arghelps {{name ?time?}}}
-	{::file attributes} {arghelps {{name ?-option value ...?}}}
+	{::file attributes} {arghelps {{name ?-option value ...?}} subcommands {group owner permissions}}
 	{::file channels} {arghelps ?pattern?}
-	{::file copy} {arghelps {{?-option value ...? source ?source ...? target}}}
+	{::file copy} {arghelps {{?-option value ...? source ?source ...? target}} subcommands {force or}}
 	{::file dirname} {arghelps name}
 	{::file executable} {arghelps name}
 	{::file exists} {arghelps name}
@@ -426,7 +437,7 @@ set ::procmap::arghelp {
 	{::file pathtype} {arghelps name}
 	{::file readable} {arghelps name}
 	{::file readlink} {arghelps name}
-	{::file rename} {arghelps {{?-option value ...? source ?source ...? target}}}
+	{::file rename} {arghelps {{?-option value ...? source ?source ...? target}} subcommands {force or}}
 	{::file rootname} {arghelps name}
 	{::file separator} {arghelps ?name?}
 	{::file size} {arghelps name}
@@ -456,7 +467,7 @@ set ::procmap::arghelp {
 	{::info class filters} {arghelps className}
 	{::info class forward} {arghelps {{className methodName}}}
 	{::info class instances} {arghelps {{className ?pattern?}}}
-	{::info class methods} {arghelps {{className ?-option value ...?}}}
+	{::info class methods} {arghelps {{className ?-option value ...?}} subcommands {all localprivate private}}
 	{::info class methodtype} {arghelps {{className methodName}}}
 	{::info class mixins} {arghelps className}
 	{::info class subclasses} {arghelps {{className ?pattern?}}}
@@ -485,7 +496,7 @@ set ::procmap::arghelp {
 	{::info object filters} {arghelps objName}
 	{::info object forward} {arghelps {{objName methodName}}}
 	{::info object isa} {arghelps {{category objName ?arg ...?}}}
-	{::info object methods} {arghelps {{objName ?-option value ...?}}}
+	{::info object methods} {arghelps {{objName ?-option value ...?}} subcommands {all localprivate private}}
 	{::info object methodtype} {arghelps {{objName methodName}}}
 	{::info object mixins} {arghelps objName}
 	{::info object namespace} {arghelps objName}
@@ -510,9 +521,9 @@ set ::procmap::arghelp {
 	::lrepeat {arghelps {{count ?value ...?}}}
 	::lreplace {arghelps {{list first last ?element ...?}}}
 	::lreverse {arghelps list}
-	::lsearch {arghelps {{?-option value ...? list pattern}}}
+	::lsearch {arghelps {{?-option value ...? list pattern}} subcommands {all ascii bisect decreasing dictionary exact glob increasing index inline integer nocase not real regexp sorted start subindices}}
 	::lset {arghelps {{listVar ?index? ?index ...? value}}}
-	::lsort {arghelps {{?-option value ...? list}}}
+	::lsort {arghelps {{?-option value ...? list}} subcommands {ascii command decreasing dictionary increasing index indices integer nocase real stride unique}}
 	::namespace {arghelps {{subcommand ?arg ...?}} subcommands {children code current delete ensemble eval exists export forget import inscope origin parent path qualifiers tail unknown upvar which}}
 	{::namespace children} {arghelps {{?name? ?pattern?}}}
 	{::namespace code} {arghelps arg}
@@ -530,14 +541,14 @@ set ::procmap::arghelp {
 	{::namespace upvar} {arghelps {{ns ?otherVar myVar ...?}}}
 	{::namespace which} {arghelps {{?-command? ?-variable? name}}}
 	::open {arghelps {{fileName ?access? ?permissions?}}}
-	::package {arghelps {{option ?arg ...?}}}
+	::package {arghelps {{option ?arg ...?}} subcommands {forget ifneeded names prefer present provide require unknown vcompare versions vsatisfies}}
 	::pid {arghelps ?channelId?}
 	::proc {arghelps {{name args body}}}
 	::puts {arghelps {{?-nonewline? ?channelId? string}}}
 	::pwd {arghelps {{}}}
 	::read {arghelps {{channelId ?numChars?} {?-nonewline? channelId}}}
-	::regexp {arghelps {{?-option ...? exp string ?matchVar? ?subMatchVar ...?}}}
-	::regsub {arghelps {{?-option ...? exp string subSpec ?varName?}}}
+	::regexp {arghelps {{?-option ...? exp string ?matchVar? ?subMatchVar ...?}} subcommands {all about indices inline expanded line linestop lineanchor nocase start or}}
+	::regsub {arghelps {{?-option ...? exp string subSpec ?varName?}} subcommands {all nocase expanded line linestop lineanchor start or}}
 	::rename {arghelps {{oldName newName}}}
 	::scan {arghelps {{string format ?varName ...?}}}
 	::seek {arghelps {{channelId offset ?origin?}}}
@@ -574,7 +585,7 @@ set ::procmap::arghelp {
 	::tell {arghelps channelId}
 	::throw {arghelps {{type message}}}
 	::time {arghelps {{command ?count?}}}
-	::trace {arghelps {{option ?arg ...?}}}
+	::trace {arghelps {{option ?arg ...?}} subcommands {add info remove variable vdelete vinfo}}
 	::try {arghelps {{body ?handler ...? ?finally script?}}}
 	::unload {arghelps {{?-switch ...? fileName ?packageName? ?interp?}}}
 	::update {arghelps ?idletasks?}
@@ -583,8 +594,8 @@ set ::procmap::arghelp {
 	::vwait {arghelps name}
 	::while {arghelps {{test command}}}
 	::zlib {arghelps {{command arg ?...?}} subcommands {adler32 compress crc32 decompress deflate gunzip gzip inflate push stream}}
-	{::namespace ensemble configure} {arghelps {{cmdname ?-option value ...? ?arg ...?}}}
-	{::namespace ensemble create} {arghelps {{?option value ...?}}}
+	{::namespace ensemble configure} {arghelps {{cmdname ?-option value ...? ?arg ...?}} subcommands {map namespace parameters prefixes subcommands unknown}}
+	{::namespace ensemble create} {arghelps {{ensemble create ?option value ...?}}}
 	{::namespace ensemble exists} {arghelps cmdname}
 	{::zlib adler32} {arghelps {{data ?startValue?}}}
 	{::zlib compress} {arghelps {{data ?level?}}}
@@ -594,7 +605,7 @@ set ::procmap::arghelp {
 	{::zlib gunzip} {arghelps {{data ?-headerVar varName?}}}
 	{::zlib gzip} {arghelps {{data ?-level level? ?-header header?}}}
 	{::zlib inflate} {arghelps {{data ?bufferSize?}}}
-	{::zlib push} {arghelps {{mode channel ?options...?}}}
-	{::zlib stream} {arghelps {{mode ?-option value...?}}}
+	{::zlib push} {arghelps {{mode channel ?options...?}} subcommands {compress decompress deflate gunzip gzip inflate}}
+	{::zlib stream} {arghelps {{stream mode ?-option value...?}}}
 }
 
