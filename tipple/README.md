@@ -91,7 +91,7 @@ The source directory will be left around (in `DIR/src`) so users can view docume
 
 ## Well-behaved packages
 
-This section needs refreshing:  relying on paths like `lib` and `modules` doesn't work for many sources today; searching for `*.tm` and `pkgIndex.tcl` is likely to work better.
+This section needs refreshing:  relying on paths like `lib` and `modules` doesn't work for many sources today; searching for `*.tm` and `pkgIndex.tcl` or `tclIndex` is likely to work better.
 
 A *well-behaved* package source is expected to Install Correctly by the following means:
 

@@ -52,12 +52,13 @@ namespace eval cuppa {
                 ),      ( 2, 'rkeene',       'http://teapot.rkeene.org'
                 );
             create table if not exists packages (
+                type    text,
                 name    text,
                 ver     text collate vcompare,
                 arch    text, os text, cpu text,
                 server  text,
                 pkgurl  text,
-                primary key (name, ver, arch, os, cpu, server),
+                primary key (type, name, ver, arch, os, cpu, server),
                 foreign key (server) references servers (server)
             );
 
@@ -119,7 +120,12 @@ namespace eval cuppa {
     }
 
     proc cache_server {server uri} {
-        set data [geturl [join_url $uri /package/list]]
+        if {$server eq "rkeene"} {
+            set suffix /package/list
+        } else {
+            set suffix /list
+        }
+        set data [geturl [join_url $uri $suffix]]
         set now [clock seconds]
         if { ![regexp {\[\[TPM\[\[(.*)\]\]MPT\]\]} $data -> data]} {
             throw {CUPPA BADTPM} "No TPM data at $uri"
@@ -132,8 +138,6 @@ namespace eval cuppa {
         }
         foreach record $data {
             lassign $record type pkg ver arch
-            if {$type ne "package"} continue
-            if {$arch eq "source"}  continue
             regexp {^(.*)(?:-(.*))?$} $arch -> os cpu
             try {
                 package vsatisfies $ver 0-
@@ -144,8 +148,8 @@ namespace eval cuppa {
             set pkgurl [join_url $uri package name $pkg ver $ver arch $arch file]
             db eval {
                 insert or replace
-                into packages (name, ver, arch, os, cpu, server, pkgurl)
-                values (:pkg, :ver, :arch, :os, :cpu, :server, :pkgurl);
+                into packages (type, name, ver, arch, os, cpu, server, pkgurl)
+                values (:type, :pkg, :ver, :arch, :os, :cpu, :server, :pkgurl);
             }
         }
         db eval {
@@ -154,14 +158,15 @@ namespace eval cuppa {
     }
 
     db::qproc Find {
-        name %  ver 0-  arch %  os %  cpu %
+        type "package" name %  ver 0-  arch %  os %  cpu %
     } {
             with t as (
-                select distinct name, ver, arch, os, cpu, server, pkgurl, pri
+                select distinct type, name, ver, arch, os, cpu, server, pkgurl, pri
                 from packages
                  inner join servers using (server)
                    -- inner join map_cpu on ( cpu like teapot and :cpu like local )
-                where name like :name
+                where type like :type
+                  and name like :name
                   and vsatisfies(ver, :ver)
                   and (cpu like :cpu
                     or exists (select * from map_cpu where cpu like teapot and :cpu like local))

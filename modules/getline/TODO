@@ -3,6 +3,7 @@
 #  - output attrs
 #  ? modes support
 #  - history-incremental-search
+#   - make this search-backward and search-forward
 #  - cumulative yank
 #  ? completion UI choices
 #  ? prefix keymaps (eg: ^L=redraw-line; ^L^L=redraw-all-lines)
@@ -16,6 +17,7 @@
 # WIBNI: continuation prompts, colours, completion
 #  - M-: to issue commands directly to getline
 #  - M-digit digit .. counts so \e5^X^E opens an editor with LAST FIVE LINES OMG
+#  - vi-style ESC-prefixed commands, with count
 #  - factor command definitions for symmetry, but don't go overboard
 #  - attrs
 #  - use exceptions for beep, result
