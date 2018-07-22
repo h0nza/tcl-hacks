@@ -334,6 +334,15 @@ namespace eval procmap {
             oo::Helpers::next
             oo::Helpers::nextto
             oo::Helpers::self
+            evalstats
+            destroy
+            focus
+            tk_chooseColor
+            tk_chooseDirectory
+            tk_getOpenFile
+            tk_getSaveFile
+            tk_messageBox
+            {tk fontchooser}
         }   ;# some are {args}, some are dangerous, some (if) just don't play nice
         set doms {
             zlib
@@ -395,6 +404,7 @@ if 0 {
 }
 
 apply {{} {
+    package require Tk
     puts "Are you sure?  This could be dangerous."
     gets stdin
     set outf [open [file join [file dirname [info script]] procmap_lib.tcl] w]
@@ -410,4 +420,5 @@ apply {{} {
         puts $outf "set ::procmap::$var {\n\t$s\n}\n"
     }
     close $outf
+    exit
 }}
