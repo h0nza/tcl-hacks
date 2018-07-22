@@ -28,7 +28,7 @@
 #
 namespace eval procmap {
     proc DecodeUnknownArgs {err cmd} {
-        set re [string map {` \"} {(?:[Bb]ad|[Uu]nknown(?: or ambiguous))? (?:(?:sub)?command|method|option|argument|mode) `([^`]*)`: (?:must|should) be(?: one of)?:? +(.*)}]
+        set re [string map {` \"} {(?:[Bb]ad|[Uu]nknown(?: or ambiguous))? (?:(?:sub)?command|method|option|argument|mode|metric) `([^`]*)`: (?:must|should) be(?: one of)?:? +(.*)}]
         if {[regexp $re $err -> subcmd alts]} {
             set alts [regexp -all -inline -- {(?:-|\w)+} $alts]
             if {[lindex $alts end-1] eq "or"} {
@@ -36,6 +36,9 @@ namespace eval procmap {
             }
             if {[lrange $alts end-2 end] eq "or an integer"} {          ;# hack for [after]
                 set alts [lreplace $alts end-2 end]
+            }
+            if {[lrange $alts end-2 end] eq "name of window"} {          ;# hack for [pack]
+                set alts [lreplace $alts end-2 end window]
             }
         } else {
             throw {PROCMAP DECODE} "Failed to decode Unknown message \"$err\""
@@ -289,6 +292,7 @@ namespace eval procmap {
     }
 
     proc examine cmd {
+        puts ">> Examining: $cmd"
         try {
             uplevel 1 $cmd
             uplevel 1 $cmd XXXXXXXXXXXXXXX [lrepeat 100 100]
@@ -346,6 +350,18 @@ namespace eval procmap {
             oo::Helpers::next
             oo::Helpers::nextto
             oo::Helpers::self
+            evalstats
+            destroy
+            focus
+            tk_chooseColor
+            tk_chooseDirectory
+            tk_getOpenFile
+            tk_getSaveFile
+            tk_messageBox
+            {tk fontchooser}
+            place
+            grid
+            pack
         }   ;# some are {args}, some are dangerous, some (if) just don't play nice
         set doms {
             zlib
@@ -391,6 +407,13 @@ namespace eval procmap {
                     regsub -all className $argspec ::oo::class argspec
                     regsub -all objName $argspec ::oo::object argspec
                     regsub -all cmdname $argspec namespace argspec  ;# this should be an ensemble
+                    if {[lindex $cmd 0] eq "::grid"} {          ;# grid and pack are stupid
+                        regsub -all window $argspec .gridded argspec
+                    } elseif {[lindex $cmd 0] eq "::pack"} {
+                        regsub -all window $argspec . argspec
+                    } else {
+                        regsub -all window $argspec .packed argspec
+                    }
                     set res [dict merge $res [procmap::examine [list {*}$cmd {*}$argspec]]]
                 }
             }
@@ -437,6 +460,10 @@ if 0 {
 
 
 apply {{} {
+    package require Tk
+    wm withdraw .
+    pack [frame .packed]
+    pack [frame .gridded] -in .packed
     puts "Are you sure?  This could be dangerous."
     gets stdin
     set outf [open [file join [file dirname [info script]] procmap_lib.tcl] w]
@@ -452,4 +479,5 @@ apply {{} {
         puts $outf "set ::procmap::$var {\n\t$s\n}\n"
     }
     close $outf
+    exit
 }}
