@@ -144,6 +144,22 @@ proc get_tpm {url} {
     return $tpm
 }
 
+# for mapping Teapot arch to requested arch
+proc expand_arch {arch} {
+    if {$arch eq "%"} {
+        set arch "*"
+    } elseif {$arch eq ""} {
+        set arch [platform::patterns [platform::identify]]
+    } else {
+        set arch [platform::patterns $arch]
+    }
+    return $arch
+}
+
+proc lmatch {item list} {
+    expr {$list eq "*" || $item in $list}
+}
+
 variable map_os {
     tcl         %
     linux-%     linux
@@ -328,11 +344,10 @@ proc cache:drop {args} {
         type %
         name %
         ver 0-
-        arch ""
-        os %
-        cpu %
+        arch %
         server %
     }
+    set arch [expand_arch $arch]
     set rowids [db eval {
         select
             packages.rowid as rowid
@@ -343,10 +358,7 @@ proc cache:drop {args} {
           and type like :type
           and name like :name
           and vsatisfies(ver, :ver)
-          and (cpu like :cpu
-            or exists (select * from map_cpu where cpu like teapot and :cpu like local))
-          and (os like :os
-            or exists (select * from map_os where os like teapot and :os like local))
+          and lmatch(arch, :arch)
           and baseurl like :server
     }]
     log "Deleting [llength $rowids] records"
@@ -365,11 +377,10 @@ proc cache:info {args} {
         type %
         name %
         ver 0-
-        arch ""
-        os %
-        cpu %
+        arch %
         server %
     }
+    set arch [expand_arch $arch]
     db eval {
         select
             type, name, ver, arch
@@ -383,10 +394,7 @@ proc cache:info {args} {
           and type like :type
           and name like :name
           and vsatisfies(ver, :ver)
-          and (cpu like :cpu
-            or exists (select * from map_cpu where cpu like teapot and :cpu like local))
-          and (os like :os
-            or exists (select * from map_os where os like teapot and :os like local))
+          and lmatch(arch, :arch)
           and baseurl like :server
         order by type, name, ver desc, arch
     } row {
@@ -400,14 +408,12 @@ proc find {name args} {
     dictargs {
         type package
         ver 0-
-        os ""
-        cpu ""
+        arch ""
         server %
         limit 99999999
     }
+    set arch [expand_arch $arch]
     lassign [split [platform::generic] -] os_ cpu_
-    if {$os eq ""} {set os $os_}
-    if {$cpu eq ""} {set cpu $cpu_}
     db eval {
         select distinct
             pkgindex.rowid as rowid, type, name, ver, arch, url
@@ -418,10 +424,7 @@ proc find {name args} {
           and name like :name
           and baseurl like :server
           and vsatisfies (ver, :ver)
-          and (cpu like :cpu
-            or exists (select * from map_cpu where cpu like teapot and :cpu like local))
-          and (os like :os
-            or exists (select * from map_os where os like teapot and :os like local))
+          and lmatch(arch, :arch)
         order by name, ver desc, priority desc
         limit :limit
     } row {
@@ -641,6 +644,7 @@ proc main {args} {
     }
     db collate  vcompare    {package vcompare}
     db function vsatisfies  {package vsatisfies}
+    db function lmatch      lmatch
 
     if {!$ex} {
         init_db
