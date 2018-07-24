@@ -222,6 +222,13 @@ proc index:del {baseurl} {
     return -type dicts [lappend result]
 }
 
+proc index:refresh {{baseurl %}} {
+    set baseurls [db onecolumn {select baseurl from servers where baseurl like :baseurl}]
+    foreach baseurl $baseurls {
+        index:add $baseurl
+    }
+}
+
 proc index:add {baseurl} {
 
     log "Indexing $baseurl ..."
@@ -245,11 +252,8 @@ proc index:add {baseurl} {
 
             lassign $ent type name ver arch
 
-            if {$type eq "profile"} {
-                continue
-            } elseif {$type eq "redirect"} {
-                continue
-            }
+            if {$type eq "profile"} continue    ;# used for collections - these just return metadata
+            if {$type eq "redirect"} continue   ;# used for non-freely licensed pkgs @ activestate
 
             set os [lindex [split $arch -] 0]
             set cpu [lindex [split $arch -] end]
@@ -442,6 +446,7 @@ proc get {name args} {
             return -type ignore [dict merge $_ [row_as_dict row]]
         }
     }
+    throw {TPM NOT_FOUND} "No package found matching $name $args"
 }
 
 proc cat {name args} {
@@ -454,6 +459,7 @@ proc cat {name args} {
     }
 }
 
+# it would be nice if specific meta fields could be requested: require, depend, description ..
 proc meta {name args} {
     try {
         cat $name {*}$args
@@ -479,6 +485,10 @@ proc meta {name args} {
     if {$meta eq ""} {
         throw {TPM NO_META} "Metadata not found!"
     }
+    # fill in required keys first:
+    set res {
+        require ""
+    }
     set meta [regexp -line -inline -all {^(?:\s*#)?\s*Meta (\S+)\s+(.*)} $meta]
     foreach {_ key val} $meta {
         dict lappend res $key {*}$val
@@ -489,9 +499,11 @@ proc meta {name args} {
 proc deps {name args} {
     set meta [meta $name {*}$args]
     foreach req [dict get $meta require] {
-        # FIXME: parse properly
         if {[llength $req] > 2} {
-            throw {TPM UNIMPLEMENTED} "Unsupported requirement format: $req"
+            # FIXME: parse properly
+            #   <name> <ver> -is application
+            #throw {TPM UNIMPLEMENTED} "Unsupported requirement format: $req"
+            log "Ignoring unknown extra fields in requirement: $req"
         }
         lassign $req name version
         #if {$name in {Tcl Tk}} continue
@@ -550,44 +562,72 @@ proc install {dir name args} {
     # FIXME: read params from this file
     seek $fd 0 end
 
-    # FIXME: follow dependencies
-    set _ [get $name {*}$args]
-    if {$_ eq ""} {
-        throw {TPM NOT_FOUND} "No package found matching $name $args"
-    }
-    dict with _ {}
+    # collect dependencies ..
+    set deps {}
+    lappend deps [dict create name $name {*}$args]
 
-    switch $type {
-        "application" {
-            createfile [set loc $dir/bin/$name] $data -permissions 0755
-        }
-        "package" {
-            switch $format {
-                "tm" {
-                    createfile [set loc $dir/modules/$name-$ver.tm] $data
-                }
-                "zip" {
-                    file mkdir [set loc $dir/lib/$name$ver]
-                    set z [Zip new $data]
-                    foreach ent [$z names] {
-                        if {[string match */ $ent]} {
-                            file mkdir $loc/$ent
-                        } else {
-                            createfile $loc/$ent [$z contents $ent] -binary 1
-                        }
-                    }
-                }
-                default {
-                    throw {TPM UNIMPLEMENTED} "Unsupported entity format \"$format\""
-                }
+    for {set i 0} {$i < [llength $deps]} {incr i} {
+        set dep [lindex $deps $i]
+        log "# depends: $dep"
+
+        set dep_name [dict get $dep name]
+        dict unset dep name
+        set dep_args $dep
+
+        foreach rdep [deps $dep_name {*}$dep_args] {
+            if {[dict get $rdep name] in {Tcl Tk}} continue     ;# FIXME ...
+            if {[dict exists $rdep ver] && [dict get $rdep ver] eq ""} {           ;# FIXME: dicts-everywhere would simplify this
+                dict unset rdep ver
+            }
+            if {$rdep ni $deps} {
+                lappend deps $rdep
             }
         }
-        default {
-            throw {TPM UNIMPLEMENTED} "Unsupported entity type \"$type\""
-        }
     }
 
-    puts $fd [list installed $name $ver $loc]
+    foreach pkgdesc $deps {
+        set name [dict get $pkgdesc name]
+        dict unset pkgdesc name
+        set args $pkgdesc
+        log "Installing $name $args"
+        set _ [get $name {*}$args]
+        dict with _ {}
+
+        switch $type {
+            "profile" {
+                log "$name is a profile, nothing to install"
+            }
+            "application" {
+                createfile [set loc $dir/bin/$name] $data -permissions 0755
+            }
+            "package" {
+                switch $format {
+                    "tm" {
+                        createfile [set loc $dir/modules/$name-$ver.tm] $data
+                    }
+                    "zip" {
+                        file mkdir [set loc $dir/lib/$name$ver]
+                        set z [Zip new $data]
+                        foreach ent [$z names] {
+                            if {[string match */ $ent]} {
+                                file mkdir $loc/$ent
+                            } else {
+                                createfile $loc/$ent [$z contents $ent] -binary 1
+                            }
+                        }
+                    }
+                    default {
+                        throw {TPM UNIMPLEMENTED} "Unsupported entity format \"$format\""
+                    }
+                }
+            }
+            default {
+                throw {TPM UNIMPLEMENTED} "Unsupported entity type \"$type\""
+            }
+        }
+        puts $fd [list installed $name $ver $loc]
+    }
+
 
     close $fd
 }
