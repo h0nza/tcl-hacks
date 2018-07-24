@@ -43,11 +43,11 @@ proc dictargs {defaults} {
     upvar 1 args args
     set keys [dict keys $defaults]
     if {[catch {dict size $args}]} {
-        tailcall tailcall throw {TCL BAD_ARGS} "Expected dictionary argument with keys in [list $keys]"
+        tailcall tailcall throw {TPM BAD_ARGS} "Expected dictionary argument with keys in [list $keys]"
     }
     dict for {k v} $args {
         if {$k ni $keys} {
-            tailcall tailcall throw {TCL WRONG_ARGS} "Incorrect dictionary argument \"$k\", must be one of [list $keys]"
+            tailcall tailcall throw {TPM WRONG_ARGS} "Incorrect dictionary argument \"$k\", must be one of [list $keys]"
         }
     }
     set args [dict merge $defaults $args]
@@ -477,7 +477,7 @@ proc meta {name args} {
     }
     # FIXME: should check first line for eg {Package name version}
     if {$meta eq ""} {
-        throw {TPC NO_META} "Metadata not found!"
+        throw {TPM NO_META} "Metadata not found!"
     }
     set meta [regexp -line -inline -all {^(?:\s*#)?\s*Meta (\S+)\s+(.*)} $meta]
     foreach {_ key val} $meta {
@@ -503,7 +503,7 @@ proc deps {name args} {
 
 proc mkenv {dir} {
     if {[file isdirectory $dir]} {
-        throw {TPC EXISTS} "Directory \"$dir\" already exists!"
+        throw {TPM EXISTS} "Directory \"$dir\" already exists!"
     }
 
     set tclexe [info nameofexe]
@@ -552,6 +552,9 @@ proc install {dir name args} {
 
     # FIXME: follow dependencies
     set _ [get $name {*}$args]
+    if {$_ eq ""} {
+        throw {TPM NOT_FOUND} "No package found matching $name $args"
+    }
     dict with _ {}
 
     switch $type {
@@ -608,10 +611,8 @@ proc main {args} {
 
     try {
         set r [{*}$args]
-    } on error {err opt} {
+    } trap {TPM} {err opt} {
         log "Error: $err"
-        array set E $opt
-        parray E
         return 1
     } on ok {res opt} {
         if {![dict exists $opt -type]} {
