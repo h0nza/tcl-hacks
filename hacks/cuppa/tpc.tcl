@@ -406,7 +406,7 @@ proc cache:info {args} {
 
 proc find {name args} {
     dictargs {
-        type package
+        type %
         ver 0-
         arch ""
         server %
