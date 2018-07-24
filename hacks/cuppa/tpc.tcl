@@ -160,34 +160,11 @@ proc lmatch {item list} {
     expr {$list eq "*" || $item in $list}
 }
 
-variable map_os {
-    tcl         %
-    linux-%     linux
-    win32       windows
-    solaris%    {solaris sunos}
-    freebsd     freebsd_%
-    irix        irix_%
-    macosx%     darwin
-}
-variable map_cpu {
-    ix86        {x86 intel i_86 i86pc}
-    sparc       sun4%
-    sparc64     {sun4u sun4v}
-    universal   %
-    {""}        %
-    powerpc     ppc
-}
-
 proc init_db {} {
     db eval {
         drop table if exists servers;
         drop table if exists pkgindex;
-        drop table if exists map_os;
-        drop table if exists map_cpu;
         drop table if exists packages;
-
-        create table map_os ( teapot text, local text );
-        create table map_cpu ( teapot text, local text );
 
         create table servers (
             rowid integer primary key asc,
@@ -230,29 +207,6 @@ proc init_db {} {
             foreign key (package_id) references packages (rowid) on delete cascade
         );
     }
-
-    if 0 {
-    variable map_os
-    variable map_cpu
-    foreach {teapot local} $map_os {
-        foreach t $teapot {
-            foreach l $local {
-                db eval {
-                    insert into map_os (teapot, local) values (:t, :l)
-                }
-            }
-        }
-    }
-    foreach {teapot local} $map_cpu {
-        foreach t $teapot {
-            foreach l $local {
-                db eval {
-                    insert into map_cpu (teapot, local) values (:t, :l)
-                }
-            }
-        }
-    }
-}
 }
 
 proc index:del {baseurl} {
