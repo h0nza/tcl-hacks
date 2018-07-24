@@ -431,7 +431,7 @@ proc get {name args} {
             return -type ignore [dict merge $_ [row_as_dict row]]
         }
         set data [download $name {*}$args]
-        if {[is_zipdata $data]} {
+        if {[is_zipdata $data]} {               ;# FIXME: must use http content-type, as there are executables too
             set format "zip"
         } else {
             set format "tm"
@@ -559,7 +559,7 @@ proc install {dir name args} {
     set fd [open $dir/tclenv.txt r+]
     finally close $fd
 
-    # FIXME: read params from this file
+    # FIXME: read params from this file, so we know what's already installed
     seek $fd 0 end
 
     # collect dependencies ..
@@ -598,6 +598,7 @@ proc install {dir name args} {
                 log "$name is a profile, nothing to install"
             }
             "application" {
+                # FIXME: think of extension
                 createfile [set loc $dir/bin/$name] $data -permissions 0755
             }
             "package" {
