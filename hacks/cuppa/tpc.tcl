@@ -28,6 +28,13 @@
 # install needs to know about libpath + tmpath.
 #
 # different path for native libs?  hm?  good for xplat starkits.
+#
+# Teapot deficiencies:  by understanding and consuming these, I can define & serve something better
+#   * metadata (requires) is only available embedded - in text, zip or vfs-in-exe (!)
+#   * text/binary only known from http response
+#   * extension must be inferred (particularly windows applications!)
+#   * no incremental index updates
+# Some of these could be read from HTML data, but not reliably
 
 package require http
 package require platform
