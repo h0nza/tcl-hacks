@@ -544,69 +544,6 @@ proc deps {name args} {
     return -type dicts $res
 }
 
-proc main {args} {
-    chan configure stdout -buffering none
-    set ex [file exists tpc.db]
-    sqlite3 db tpc.db
-    db eval {
-        pragma foreign_keys = on
-    }
-    db collate  vcompare    {package vcompare}
-    db function vsatisfies  {package vsatisfies}
-
-    if {!$ex} {
-        init_db
-        index:add http://teapot.rkeene.org/
-        index:add http://teapot.activestate.com/
-    }
-
-    try {
-        set r [{*}$args]
-    } on error {err opt} {
-        log "Error: $err"
-        return 1
-    } on ok {res opt} {
-        if {![dict exists $opt -type]} {
-            dict set opt -type text
-        }
-        switch [dict get $opt -type] {
-            ignore {}
-            dict {
-                array set {} $res
-                parray {}
-            }
-            dicts {
-                set row [lindex $res 0]
-                dict unset row rowid
-                set keys [dict keys $row]
-                puts \x1b\[1m[join $keys \t]\x1b\[0m
-                foreach row $res {
-                    dict unset row rowid
-                    puts [join [dict values $row] \t]
-                }
-            }
-            table {
-                foreach row $res {
-                    puts [join $row \t]
-                }
-            }
-            text {
-                puts -nonewline $res
-            }
-            binary {
-                set trans [chan configure stdout -translation]
-                chan configure stdout -translation binary
-                puts -nonewline stdout $res
-                chan configure stdout -translation $trans
-            }
-            default {
-                if {$res ne ""} {puts $res}
-            }
-        }
-    }
-    return 0
-}
-
 proc mkenv {dir} {
     if {[file isdirectory $dir]} {
         throw {TPC EXISTS} "Directory \"$dir\" already exists!"
@@ -693,6 +630,71 @@ proc install {dir name args} {
     puts $fd [list installed $name $ver $loc]
 
     close $fd
+}
+
+proc main {args} {
+    chan configure stdout -buffering none
+    set ex [file exists tpc.db]
+    sqlite3 db tpc.db
+    db eval {
+        pragma foreign_keys = on
+    }
+    db collate  vcompare    {package vcompare}
+    db function vsatisfies  {package vsatisfies}
+
+    if {!$ex} {
+        init_db
+        index:add http://teapot.rkeene.org/
+        index:add http://teapot.activestate.com/
+    }
+
+    try {
+        set r [{*}$args]
+    } on error {err opt} {
+        log "Error: $err"
+        array set E $opt
+        parray E
+        return 1
+    } on ok {res opt} {
+        if {![dict exists $opt -type]} {
+            dict set opt -type text
+        }
+        switch [dict get $opt -type] {
+            ignore {}
+            dict {
+                array set {} $res
+                parray {}
+            }
+            dicts {
+                set row [lindex $res 0]
+                dict unset row rowid
+                set keys [dict keys $row]
+                puts \x1b\[1m[join $keys \t]\x1b\[0m
+                foreach row $res {
+                    dict unset row rowid
+                    puts [join [dict values $row] \t]
+                }
+            }
+            table {
+                foreach row $res {
+                    puts [join $row \t]
+                }
+            }
+            text {
+                puts -nonewline $res
+            }
+            binary {
+                set trans [chan configure stdout -translation]
+                chan configure stdout -translation binary
+                puts -nonewline stdout $res
+                chan configure stdout -translation $trans
+            }
+            default {
+                if {$res ne ""} {puts $res}
+            }
+        }
+    }
+    return 0
 }
 
 exit [main {*}$::argv]
