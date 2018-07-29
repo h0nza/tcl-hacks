@@ -172,7 +172,10 @@ if {[info script] eq $::argv0} {
             return -code 403 "You are not allowed!"
         }
         if {$url eq "/index.html"} {
-            return "Hello, world!"
+            return "(\u2713) Hello, world!"
+        }
+        if {$url eq "/binary"} {
+            return -content-type application/octet-stream \x0d\xea\xd0\x0b\xee\xf0
         }
         if {$url eq "/exit"} {
             after idle {incr ::forever}
