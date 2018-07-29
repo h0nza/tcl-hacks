@@ -261,6 +261,28 @@ namespace eval inet {
         }
     }
 
+    service http/80 {   ;# rfc2616 - see minhttpd for a much more careful implementation
+
+        chan configure $chan -encoding iso8859-1 -translation crlf
+
+        gets $chan reqline
+
+        if {![regexp {^GET (\S+) HTTP/1.1$} $reqline -> uri]} {
+            puts $chan "HTTP/1.1 400 Bad Request"
+            puts $chan "Connection: close"
+            puts $chan ""
+            throw {HTTP INVALID REQUEST} "Invalid request [list $reqline]"
+        }
+
+        while {[gets $chan line]>0} {}
+
+        puts $chan "HTTP/1.1 200 OK"
+        puts $chan "Connection: close"
+        puts $chan ""
+        puts $chan "Hello, world!"
+    }
+
+
     service ident/113 { ;# rfc1413
         if {[gets $chan line] > 0} {
             set parts [lmap x [split $line ,] {string trim $x}]
