@@ -29,13 +29,18 @@ namespace eval minhttpd {
         }
     }
 
-    proc serve {callback port args} {
+    proc serve {callback port} {
         dict set sockargs -server [callback accept $callback]
         if {[regexp {(.*):(.*)} $port -> host port]} {
             dict set sockargs -myaddr $host
         }
         set listenfd [socket {*}$sockargs $port]
         return $listenfd
+    }
+
+    proc close {listenfd} {
+        close $listenfd
+        # timeouts will take care of existing clients
     }
 
     proc accept {callback chan caddr cport} {
