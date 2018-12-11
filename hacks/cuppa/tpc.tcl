@@ -24,10 +24,15 @@
 # [ ] assemble & distribute
 # [ ] isatty() ?
 #
-# teaparty synthesises a pkgIndex.tcl for tm's.  I don't wanna do that, so
-# install needs to know about libpath + tmpath.
+# teaparty synthesises a pkgIndex.tcl for tm's.  I don't wanna do that, so install needs to know about libpath + tmpath.
 #
-# different path for native libs?  hm?  good for xplat starkits.
+# different path for native libs?  hm?  good for xplat starkits.  But makes vfs maintenance awful, so don't
+#
+# TODO:
+#   * install directory names should not contain ::
+#   * all repo commands should take a dict; {name dict} is awkward
+#   * might as well support uninstall
+#   * mkvfs for non-native arch
 #
 # Teapot deficiencies:  by understanding and consuming these, I can define & serve something better
 #   * metadata (requires) is only available embedded - in text, zip or vfs-in-exe (!)
@@ -98,7 +103,12 @@ proc log {text} {
 
 proc isatty {} {
     # unix:
-    expr {![catch {exec sh -c {stty <&1} <@stdin >@stdout}]}
+    expr {![catch {chan configure stdout -mode}]}
+    # doesn't work on windows (according to wine).  But wine+tclkit does get
+    #  -encoding unicode ... if tty  (unicode? what fucking sort of encoding is that?)
+    #  -encoding [encoding system] ... if redirected
+    # uglier alternative:
+    #expr {![catch {exec sh -c {stty <&1 > /dev/null} <@stdin >@stdout}]}
 }
 
 proc geturl {url} {

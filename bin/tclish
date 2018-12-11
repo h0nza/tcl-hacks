@@ -57,7 +57,29 @@ namespace eval tclish {
     }
 
 
-    proc main {} {
+    proc lshift {_list} {
+        upvar 1 $_list list
+        if {[llength $list] == 0} {
+            throw {LSHIFT EMPTY} "Attempt to shift an empty list!"
+        }
+        set list [lassign $list r]
+        return $r
+    }
+
+    proc main {args} {
+
+        set cmds {}
+        while {[string match -* [lindex $args 0]]} {
+            set arg [lshift args]
+            switch $arg {
+                -c { lappend cmds [lshift args] }
+                -m { lappend cmds "package require [lshift args]" }
+                -- { break }
+            }
+        }
+        foreach script $args {
+            lappend cmds [list source $script]
+        }
 
         exec stty raw -echo <@ stdin
         finally {exec stty -raw echo <@ stdin}
@@ -72,6 +94,18 @@ namespace eval tclish {
 
         finally [callback getline destroy]
 
+        foreach cmd $cmds {
+            puts "# % $cmd"
+            try {
+                uplevel #0 $cmd
+            } on ok {res opt} {
+                if {$res eq ""} continue
+                puts #\ [tty::attr bold][list $res][tty::attr]
+            } on error {res opt} {
+                puts #\ [tty::attr fg red bold]$res[tty::attr]
+            }
+        }
+
         while 1 {
             set input [getline getline]             ;# can return -code break/continue
             try {
@@ -83,6 +117,7 @@ namespace eval tclish {
                 puts [tty::attr fg red bold]\ $res[tty::attr]
             }
         }
+        puts ""
     }
 
     coroutine Main try {
