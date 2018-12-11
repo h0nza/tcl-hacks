@@ -9,15 +9,17 @@ proc boot {args} [format {
 boot eval
 package provide boot 0.1
 
-if {$::argv ne ""} {
-    proc info_cmdline {} [list list [info nameofexe] $::argv0 $::argv]      ;# hack for restartability
-    set ::argv [lassign $::argv ::argv0]
-    source $::argv0
-} else {
-    return
-    # async repl:
-    package require repl
-    coroutine main repl::chan stdin stdout stderr
-    trace add command main delete {unset ::forever; #}
-    vwait forever
+if {[info exists ::argv0] && ($::argv0 eq [info script])} {
+    if {$::argv ne ""} {
+        proc info_cmdline {} [list list [info nameofexe] $::argv0 $::argv]      ;# hack for restartability
+        set ::argv [lassign $::argv ::argv0]
+        source $::argv0
+    } else {
+        return
+        # async repl:
+        package require repl
+        coroutine main repl::chan stdin stdout stderr
+        trace add command main delete {unset ::forever; #}
+        vwait forever
+    }
 }

@@ -95,14 +95,14 @@ namespace eval tclish {
         finally [callback getline destroy]
 
         foreach cmd $cmds {
-            getline insert $cmd\n
+            puts "# % $cmd"
             try {
                 uplevel #0 $cmd
             } on ok {res opt} {
                 if {$res eq ""} continue
-                puts [tty::attr bold]\ [list $res][tty::attr]
+                puts #\ [tty::attr bold][list $res][tty::attr]
             } on error {res opt} {
-                puts [tty::attr fg red bold]\ $res[tty::attr]
+                puts #\ [tty::attr fg red bold]$res[tty::attr]
             }
         }
 
@@ -117,6 +117,7 @@ namespace eval tclish {
                 puts [tty::attr fg red bold]\ $res[tty::attr]
             }
         }
+        puts ""
     }
 
     coroutine Main try {
