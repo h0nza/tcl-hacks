@@ -38,7 +38,7 @@ namespace eval minhttpd {
         return $listenfd
     }
 
-    proc close {listenfd} {
+    proc stop {listenfd} {
         close $listenfd
         # timeouts will take care of existing clients
     }
@@ -167,7 +167,18 @@ namespace eval minhttpd {
 
 if {[info script] eq $::argv0} {
 
-    set svrfd [minhttpd::serve httpGet 8080]
+    set port 8080
+    while {$port < 8100} {
+        try {
+            set svrfd [minhttpd::serve httpGet $port]
+            puts "Listening on http://localhost:$port/"
+            break
+        } on error {} continue
+    }
+    if {![info exists svrfd]} {
+        puts "Unable to open server socket!"
+        exit 1
+    }
 
     proc httpGet {url} {
         if {$url eq "/"} {
