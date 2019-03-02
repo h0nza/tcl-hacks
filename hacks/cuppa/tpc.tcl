@@ -541,17 +541,26 @@ proc mkenv {dir} {
 
     log "Creating Tcl environment in $dir for $tclexe ($tclver)"
     file mkdir $dir
-    file mkdir $dir/bin $dir/lib $dir/modules
+    file mkdir $dir/bin $dir/lib $dir/modules $dir/lib/_modules
 
     set dir [file normalize $dir]
 
+    createfile $dir/lib/_modules/pkgIndex.tcl [dedent [subst -noc {
+        # helper for starpacks to initialise the .tm path
+        tcl::tm::path add [file dirname [file dirname $dir]]/modules
+    }]]
+
     createfile $dir/bin/activate [dedent [subst -noc {
         # source this file to initialize your env:
+
         PATH="$dir/bin:\$PATH"
         # FIXME: what if these are already set?
         TCLLIBPATH="$dir/lib"
         TCL${majver}_${minver}_TM_PATH="$dir/modules"
+
         export PATH TCLLIBPATH TCL${majver}_${minver}_TM_PATH
+
+        # FIXME: provide deactivate() function
     }]]
 
     createfile $dir/bin/tclsh [dedent [subst -noc {
@@ -565,9 +574,9 @@ proc mkenv {dir} {
         tcl_version $tclver
         platform    [platform::identify]
 
-        bindir      [list bin]
-        libdir      [list lib]
-        tmdir       [list modules]
+        bindir      bin
+        libdir      lib
+        tmdir       modules
 
     }]]
 }
