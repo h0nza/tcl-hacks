@@ -8,7 +8,7 @@
 #
 # History and Completion will get re-used in tksh (part of snot).
 #
-catch {source [file dirname [info script]]/../boot.tcl}
+catch {source [file dirname [file dirname [file normalize [info script]/...]]]/../boot.tcl}
 
 package require getline
 
