@@ -135,6 +135,12 @@ namespace eval minhttpd {
             dict append headers -content-type "; charset=utf-8"
         }
 
+        dict for {k v} $headers {
+            if {$v eq ""} {
+                dict unset headers $k
+            }
+        }
+
         if {$data eq ""} {
             dict unset headers -content-type
         }
@@ -199,6 +205,9 @@ if {[info script] eq $::argv0} {
         }
         if {$url eq "/empty"} {
             return ""
+        }
+        if {$url eq "/no-content-type"} {
+            return -code 404 -content-type "" {<script>alert("boom")</script>}
         }
         if {$url eq "/error"} {
             expr {1/0}
