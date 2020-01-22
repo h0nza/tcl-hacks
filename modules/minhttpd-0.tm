@@ -21,7 +21,7 @@ namespace eval minhttpd {
             yield
             if {[gets $chan line] >= 0 && ![eof $chan]} break   ;# EOF will be true if we didn't get a line-terminator
             if {[chan pending input $chan] > $limit} {
-                return -level 2 -code error -errorcode {MINHTTPD LINE_TOO_LONG} "Line too long: [chan pending $chan] > $limit bytes"
+                return -level 2 -code error -errorcode {MINHTTPD LINE_TOO_LONG} "Line too long: [chan pending input $chan] > $limit bytes"
             }
             if {[eof $chan]} {
                 return -level 2 -code error -errorcode {MINHTTPD EOF} "Premature EOF while reading line after [string length $line] bytes"
